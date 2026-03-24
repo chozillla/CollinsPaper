@@ -20,7 +20,23 @@ We replicate the 10-shot audio LLM prompting method on a different dataset (AMI 
 
 The 10-shot Gemini classifier is **3.8x better than random guessing** and **2.5x better than the hotword baseline**, confirming that audio language models can detect hearing difficulty moments from conversational audio.
 
-The gap vs. the paper (0.58 vs 0.87) is expected due to differences in dataset (AMI multi-speaker meetings vs SWDA/MRDA telephone conversations), audio format (headset mix vs individual channels), and fewer positive examples (105 vs 298).
+### Why Random Guessing is So Low
+
+The dataset is highly imbalanced — only **9.1%** of segments are positive (105 out of 1,155). A random classifier that guesses 50/50 will predict positive for ~half the segments, but only ~9% are actually positive, resulting in very low precision and an F1 of just 0.15. A base-rate-matched random classifier (guessing positive 9% of the time) does even worse at F1 = 0.09 because it rarely predicts positive at all, achieving almost no recall. This establishes a clear floor that any meaningful classifier must exceed.
+
+### Why Our F1 (0.58) Differs from the Paper (0.87)
+
+Several factors explain the performance gap:
+
+1. **Different dataset**: The paper used SWDA (telephone conversations) and MRDA (ICSI meeting recordings), while we use the AMI Meeting Corpus. AMI meetings have 4 speakers with frequent overlapping talk, background noise, and cross-talk — making it harder for the model to isolate individual speakers and detect who is having difficulty hearing.
+
+2. **Headset mix vs individual channels**: We use the AMI headset mix audio (all speakers mixed into one channel). The paper's SWDA data is telephone speech with clearer speaker separation. In the mix, the HDM utterance ("What?", "Huh?") can be masked by other speakers talking simultaneously.
+
+3. **Fewer positive examples**: We have 105 positive examples (from 149 HDMs across meetings with available audio) vs the paper's 298. With smaller test sets per CV split (15–26 positives), a few misclassifications cause large swings in F1 — our per-split F1 ranges from 0.47 to 0.70.
+
+4. **Different annotation source**: The paper used the native `signal-non-understanding` DAMSL tag from SWDA/MRDA, which directly annotates hearing difficulty. We derived our labels from AMI's broader `COMMENT-ABOUT-UNDERSTANDING` tag and applied filtering, which may include some false positives or miss some true HDMs.
+
+5. **Different model**: We used Gemini 3.1 Pro instead of the paper's Gemini 1.5 Pro. While 3.1 is generally more capable, its audio understanding characteristics may differ, and the paper may have benefited from specific behaviors of 1.5 Pro for this task.
 
 ---
 
