@@ -1,0 +1,150 @@
+meeting_id,speaker,da_id,da_type,da_type_id,start_time,end_time,duration_ms,text,hdm_label,filter_reason
+ES2002b,B,ES2002b.B.dialog-act.dharshi.3,comment-about-understanding,ami_da_12,19.66,20.39,730.0,Sorry ?,positive,strong_keyword_match
+ES2002b,D,ES2002b.D.dialog-act.dharshi.29,comment-about-understanding,ami_da_12,477.66,478.27,610.0,Which was that ?,positive,explicit_non_understanding
+ES2002c,D,ES2002c.D.dialog-act.dharshi.219,comment-about-understanding,ami_da_12,1501.81,1502.18,370.0,What's that ?,positive,explicit_non_understanding
+ES2002d,C,ES2002d.C.dialog-act.dharshi.120,comment-about-understanding,ami_da_12,956.75,957.21,460.0,What's that ?,positive,explicit_non_understanding
+ES2003b,B,ES2003b.B.dialog-act.vkaraisk.246,comment-about-understanding,ami_da_12,1849.22,1849.49,270.0,Sorry ?,positive,strong_keyword_match
+ES2003b,C,ES2003b.C.dialog-act.vkaraisk.143,comment-about-understanding,ami_da_12,515.23,515.56,330.0,I'm sorry ?,positive,short_question
+ES2004a,D,ES2004a.D.dialog-act.s9553330.9,comment-about-understanding,ami_da_12,315.85,316.3,450.0,Sorry ?,positive,strong_keyword_match
+ES2004c,A,ES2004c.A.dialog-act.dharshi.54,comment-about-understanding,ami_da_12,1250.61,1253.104,2494.0,"Sorry I didn't get the last part , you're talking of",positive,explicit_non_understanding
+ES2005c,A,ES2005c.A.dialog-act.dharshi.217,comment-about-understanding,ami_da_12,1945.51,1945.69,180.0,Hmm ?,positive,strong_keyword_match
+ES2005c,A,ES2005c.A.dialog-act.dharshi.232,comment-about-understanding,ami_da_12,2011.6,2011.87,270.0,Huh ?,positive,strong_keyword_match
+ES2005c,C,ES2005c.C.dialog-act.dharshi.359,comment-about-understanding,ami_da_12,2258.4,2258.75,350.0,Huh ?,positive,strong_keyword_match
+ES2005d,B,ES2005d.B.dialog-act.dharshi.171,comment-about-understanding,ami_da_12,1357.4,1357.73,330.0,Sorry ?,positive,strong_keyword_match
+ES2005d,C,ES2005d.C.dialog-act.dharshi.113,comment-about-understanding,ami_da_12,531.9,532.11,210.0,What ?,positive,strong_keyword_match
+ES2005d,C,ES2005d.C.dialog-act.dharshi.184,comment-about-understanding,ami_da_12,773.84,774.03,190.0,Huh ?,positive,strong_keyword_match
+ES2007a,D,ES2007a.D.dialog-act.dharshi.25,comment-about-understanding,ami_da_12,342.09,342.73,640.0,A what ?,positive,short_question
+ES2007b,D,ES2007b.D.dialog-act.dharshi.113,comment-about-understanding,ami_da_12,1301.53,1301.78,250.0,Huh ?,positive,strong_keyword_match
+ES2007d,A,ES2007d.A.dialog-act.dharshi.15,comment-about-understanding,ami_da_12,115.696,117.05,1354.0,what button ?,positive,short_question
+ES2008b,D,ES2008b.D.dialog-act.vkaraisk.51,comment-about-understanding,ami_da_12,376.98,377.2,220.0,What ?,positive,strong_keyword_match
+ES2008d,A,ES2008d.A.dialog-act.vkaraisk.276,comment-about-understanding,ami_da_12,1522.9,1523.22,320.0,What ?,positive,strong_keyword_match
+ES2009d,C,ES2009d.C.dialog-act.vkaraisk.209,comment-about-understanding,ami_da_12,2095.25,2095.69,440.0,Huh ?,positive,strong_keyword_match
+ES2010c,A,ES2010c.A.dialog-act.dharshi.42,comment-about-understanding,ami_da_12,305.48,305.98,500.0,Sorry ?,positive,strong_keyword_match
+ES2010d,D,ES2010d.D.dialog-act.dharshi.86,comment-about-understanding,ami_da_12,462.752,463.43,678.0,What ?,positive,strong_keyword_match
+ES2011b,A,ES2011b.A.dialog-act.dharshi.15,comment-about-understanding,ami_da_12,88.39,88.58,190.0,Hm ?,positive,strong_keyword_match
+ES2011c,B,ES2011c.B.dialog-act.dharshi.24,comment-about-understanding,ami_da_12,244.8,245.14,340.0,hmm ?,positive,strong_keyword_match
+ES2011c,C,ES2011c.C.dialog-act.dharshi.103,comment-about-understanding,ami_da_12,779.51,781.45,1940.0,Hmm ?,positive,strong_keyword_match
+ES2011d,B,ES2011d.B.dialog-act.dharshi.42,comment-about-understanding,ami_da_12,553.72,553.92,200.0,Hmm ?,positive,strong_keyword_match
+ES2011d,B,ES2011d.B.dialog-act.dharshi.60,comment-about-understanding,ami_da_12,872.26,872.53,270.0,Huh ?,positive,strong_keyword_match
+ES2011d,C,ES2011d.C.dialog-act.dharshi.77,comment-about-understanding,ami_da_12,1208.34,1209.39,1050.0,Huh ?,positive,strong_keyword_match
+ES2012a,A,ES2012a.A.dialog-act.vkaraisk.87,comment-about-understanding,ami_da_12,451.36,451.59,230.0,Sorry ?,positive,strong_keyword_match
+ES2013a,B,ES2013a.B.dialog-act.vkaraisk.21,comment-about-understanding,ami_da_12,317.84,318.16,320.0,A what ?,positive,short_question
+ES2014b,A,ES2014b.A.dialog-act.s9553330.241,comment-about-understanding,ami_da_12,2089.75,2090.12,370.0,Sorry ?,positive,strong_keyword_match
+ES2014d,D,ES2014d.D.dialog-act.s9553330.397,comment-about-understanding,ami_da_12,2884.77,2885.91,1140.0,Hmm ?,positive,strong_keyword_match
+ES2015b,A,ES2015b.A.dialog-act.dharshi.75,comment-about-understanding,ami_da_12,912.33,913.7,1370.0,what was that last thing that you just said ?,positive,explicit_non_understanding
+ES2015b,D,ES2015b.D.dialog-act.dharshi.11,comment-about-understanding,ami_da_12,628.45,630.49,2040.0,what was that last one . Multifunctional and,positive,explicit_non_understanding
+ES2015c,A,ES2015c.A.dialog-act.dharshi.107,comment-about-understanding,ami_da_12,907.99,908.34,350.0,Hmm ?,positive,strong_keyword_match
+ES2015c,B,ES2015c.B.dialog-act.dharshi.41,comment-about-understanding,ami_da_12,252.85,253.89,1040.0,Sorry ?,positive,strong_keyword_match
+ES2015d,A,ES2015d.A.dialog-act.dharshi.330,comment-about-understanding,ami_da_12,1854.24,1854.46,220.0,Hmm ?,positive,strong_keyword_match
+ES2015d,B,ES2015d.B.dialog-act.dharshi.296,comment-about-understanding,ami_da_12,1876.57,1877.35,780.0,Sorry ?,positive,strong_keyword_match
+ES2015d,D,ES2015d.D.dialog-act.dharshi.88,comment-about-understanding,ami_da_12,731.89,732.86,970.0,It's what ?,positive,short_question
+IS1000a,B,IS1000a.B.dialog-act.vkaraisk.188,elicit-comment-understanding,ami_da_13,1133.36,1133.55,190.0,huh ?,positive,strong_keyword_match
+IS1000a,B,IS1000a.B.dialog-act.vkaraisk.190,comment-about-understanding,ami_da_12,1138.14,1138.68,540.0,Excuse me ?,positive,strong_keyword_match
+IS1000b,A,IS1000b.A.dialog-act.vkaraisk.117,comment-about-understanding,ami_da_12,835.65,837.0,1350.0,Sorry ?,positive,strong_keyword_match
+IS1001a,A,IS1001a.A.dialog-act.s9553330.15,comment-about-understanding,ami_da_12,137.04,138.76,1720.0,sorry ?,positive,strong_keyword_match
+IS1001a,A,IS1001a.A.dialog-act.s9553330.59,comment-about-understanding,ami_da_12,408.37,410.487,2117.0,Like a what ?,positive,short_question
+IS1001b,D,IS1001b.D.dialog-act.dharshi.48,comment-about-understanding,ami_da_12,601.7,602.09,390.0,Sorry ?,positive,strong_keyword_match
+IS1001d,A,IS1001d.A.dialog-act.vkaraisk.174,comment-about-understanding,ami_da_12,715.6,715.94,340.0,Sorry ?,positive,strong_keyword_match
+IS1001d,D,IS1001d.D.dialog-act.vkaraisk.60,comment-about-understanding,ami_da_12,374.58,375.2,620.0,how much what ?,positive,short_question
+IS1002d,B,IS1002d.B.dialog-act.dharshi.112,comment-about-understanding,ami_da_12,963.43,963.57,140.0,What ?,positive,strong_keyword_match
+IS1003a,D,IS1003a.D.dialog-act.vkaraisk.65,comment-about-understanding,ami_da_12,639.46,641.4,1940.0,What ?,positive,strong_keyword_match
+IS1003c,A,IS1003c.A.dialog-act.vkaraisk.10,comment-about-understanding,ami_da_12,77.21,77.4,190.0,What ?,positive,strong_keyword_match
+IS1003c,D,IS1003c.D.dialog-act.vkaraisk.64,comment-about-understanding,ami_da_12,658.4,658.58,180.0,What ?,positive,strong_keyword_match
+IS1003d,D,IS1003d.D.dialog-act.dharshi.12,comment-about-understanding,ami_da_12,135.28,136.0,720.0,What slides ?,positive,short_question
+IS1004b,A,IS1004b.A.dialog-act.dharshi.94,comment-about-understanding,ami_da_12,784.52,784.79,270.0,Sorry ?,positive,strong_keyword_match
+IS1004b,D,IS1004b.D.dialog-act.dharshi.62,comment-about-understanding,ami_da_12,545.01,545.33,320.0,Sorry ?,positive,strong_keyword_match
+IS1004b,D,IS1004b.D.dialog-act.dharshi.65,comment-about-understanding,ami_da_12,564.08,564.39,310.0,Sorry ?,positive,strong_keyword_match
+IS1004c,D,IS1004c.D.dialog-act.dharshi.70,comment-about-understanding,ami_da_12,463.28,463.56,280.0,What ?,positive,strong_keyword_match
+IS1004c,D,IS1004c.D.dialog-act.dharshi.71,comment-about-understanding,ami_da_12,464.88,465.14,260.0,What ?,positive,strong_keyword_match
+IS1004d,A,IS1004d.A.dialog-act.dharshi.311,comment-about-understanding,ami_da_12,1668.86,1669.25,390.0,Sorry ?,positive,strong_keyword_match
+IS1004d,B,IS1004d.B.dialog-act.dharshi.66,comment-about-understanding,ami_da_12,430.22,430.76,540.0,The what sorry ?,positive,short_question
+IS1004d,D,IS1004d.D.dialog-act.dharshi.62,comment-about-understanding,ami_da_12,682.93,683.19,260.0,Sorry ?,positive,strong_keyword_match
+IS1005b,A,IS1005b.A.dialog-act.dharshi.181,comment-about-understanding,ami_da_12,1931.83,1932.17,340.0,For what ?,positive,short_question
+IS1005c,A,IS1005c.A.dialog-act.dharshi.154,comment-about-understanding,ami_da_12,1558.92,1560.3,1380.0,Mm what ?,positive,short_question
+IS1006a,D,IS1006a.D.dialog-act.dharshi.11,comment-about-understanding,ami_da_12,163.3,163.76,460.0,A what ?,positive,short_question
+IS1007d,B,IS1007d.B.dialog-act.s9553330.270,comment-about-understanding,ami_da_12,1546.44,1546.65,210.0,Huh ?,positive,strong_keyword_match
+IS1007d,C,IS1007d.C.dialog-act.s9553330.44,comment-about-understanding,ami_da_12,318.74,319.43,690.0,excuse me ?,positive,strong_keyword_match
+IS1007d,C,IS1007d.C.dialog-act.s9553330.109,comment-about-understanding,ami_da_12,865.48,865.87,390.0,Excuse me ?,positive,strong_keyword_match
+IS1009c,A,IS1009c.A.dialog-act.dharshi.155,comment-about-understanding,ami_da_12,1697.01,1698.02,1010.0,A what ?,positive,short_question
+IS1009c,B,IS1009c.B.dialog-act.dharshi.19,comment-about-understanding,ami_da_12,377.33,377.69,360.0,Pardon me ?,positive,short_question
+IS1009d,B,IS1009d.B.dialog-act.dharshi.48,comment-about-understanding,ami_da_12,699.16,699.48,320.0,Pardon me ?,positive,short_question
+IS1009d,D,IS1009d.D.dialog-act.dharshi.196,comment-about-understanding,ami_da_12,1446.12,1446.6,480.0,Hmm ?,positive,strong_keyword_match
+TS3004a,A,TS3004a.A.dialog-act.vkaraisk.163,comment-about-understanding,ami_da_12,651.56,651.85,290.0,Sorry ?,positive,strong_keyword_match
+TS3004b,C,TS3004b.C.dialog-act.vkaraisk.2,comment-about-understanding,ami_da_12,87.41,87.73,320.0,What ?,positive,strong_keyword_match
+TS3004b,C,TS3004b.C.dialog-act.vkaraisk.6,comment-about-understanding,ami_da_12,153.95,154.18,230.0,What ?,positive,strong_keyword_match
+TS3004c,B,TS3004c.B.dialog-act.vkaraisk.6,comment-about-understanding,ami_da_12,56.85,57.61,760.0,What ?,positive,strong_keyword_match
+TS3004c,C,TS3004c.C.dialog-act.vkaraisk.264,comment-about-understanding,ami_da_12,1669.152,1673.68,4528.0,What ?,positive,strong_keyword_match
+TS3004d,B,TS3004d.B.dialog-act.dharshi.100,comment-about-understanding,ami_da_12,574.05,574.94,890.0,Hmm ?,positive,strong_keyword_match
+TS3004d,B,TS3004d.B.dialog-act.dharshi.101,comment-about-understanding,ami_da_12,574.94,575.52,580.0,What else ?,positive,short_question
+TS3004d,B,TS3004d.B.dialog-act.dharshi.141,comment-about-understanding,ami_da_12,992.54,992.73,190.0,Hmm ?,positive,strong_keyword_match
+TS3005b,A,TS3005b.A.dialog-act.vkaraisk.179,comment-about-understanding,ami_da_12,2201.71,2201.82,110.0,huh ?,positive,strong_keyword_match
+TS3005b,C,TS3005b.C.dialog-act.vkaraisk.8,comment-about-understanding,ami_da_12,163.79,164.03,240.0,Huh ?,positive,strong_keyword_match
+TS3005b,D,TS3005b.D.dialog-act.vkaraisk.201,comment-about-understanding,ami_da_12,1399.03,1399.2,170.0,Sorry ?,positive,strong_keyword_match
+TS3005c,C,TS3005c.C.dialog-act.vkaraisk.287,comment-about-understanding,ami_da_12,1778.48,1779.936,1456.0,Sorry ?,positive,strong_keyword_match
+TS3005c,D,TS3005c.D.dialog-act.vkaraisk.79,comment-about-understanding,ami_da_12,1195.72,1197.4,1680.0,Sorry ?,positive,strong_keyword_match
+TS3005d,A,TS3005d.A.dialog-act.vkaraisk.326,comment-about-understanding,ami_da_12,1861.92,1862.38,460.0,Hmm ?,positive,strong_keyword_match
+TS3005d,B,TS3005d.B.dialog-act.vkaraisk.134,comment-about-understanding,ami_da_12,592.22,592.44,220.0,Huh ?,positive,strong_keyword_match
+TS3005d,B,TS3005d.B.dialog-act.vkaraisk.236,comment-about-understanding,ami_da_12,934.11,936.93,2820.0,What ?,positive,strong_keyword_match
+TS3005d,C,TS3005d.C.dialog-act.vkaraisk.290,comment-about-understanding,ami_da_12,1443.52,1443.7,180.0,Huh ?,positive,strong_keyword_match
+TS3005d,C,TS3005d.C.dialog-act.vkaraisk.338,comment-about-understanding,ami_da_12,1606.02,1606.38,360.0,What ?,positive,strong_keyword_match
+TS3005d,C,TS3005d.C.dialog-act.vkaraisk.516,comment-about-understanding,ami_da_12,2549.08,2549.27,190.0,Huh ?,positive,strong_keyword_match
+TS3005d,D,TS3005d.D.dialog-act.vkaraisk.334,comment-about-understanding,ami_da_12,1621.74,1621.99,250.0,Huh ?,positive,strong_keyword_match
+TS3006a,B,TS3006a.B.dialog-act.vkaraisk.10,comment-about-understanding,ami_da_12,110.99,111.12,130.0,Hmm ?,positive,strong_keyword_match
+TS3006b,D,TS3006b.D.dialog-act.dharshi.19,comment-about-understanding,ami_da_12,119.21,120.82,1610.0,What ?,positive,strong_keyword_match
+TS3006c,B,TS3006c.B.dialog-act.dharshi.65,comment-about-understanding,ami_da_12,817.06,817.28,220.0,What ?,positive,strong_keyword_match
+TS3006c,C,TS3006c.C.dialog-act.dharshi.291,comment-about-understanding,ami_da_12,2094.93,2095.61,680.0,Huh ?,positive,strong_keyword_match
+TS3006c,C,TS3006c.C.dialog-act.dharshi.309,comment-about-understanding,ami_da_12,2165.28,2165.87,590.0,Excuse me ?,positive,strong_keyword_match
+TS3006d,B,TS3006d.B.dialog-act.dharshi.231,comment-about-understanding,ami_da_12,2196.49,2196.63,140.0,Hmm ?,positive,strong_keyword_match
+TS3006d,D,TS3006d.D.dialog-act.dharshi.228,comment-about-understanding,ami_da_12,1143.92,1144.18,260.0,Huh ?,positive,strong_keyword_match
+TS3006d,D,TS3006d.D.dialog-act.dharshi.280,comment-about-understanding,ami_da_12,1289.43,1290.02,590.0,Hmm ?,positive,strong_keyword_match
+TS3006d,D,TS3006d.D.dialog-act.dharshi.513,comment-about-understanding,ami_da_12,2335.66,2336.4,740.0,Hmm ?,positive,strong_keyword_match
+TS3007a,B,TS3007a.B.dialog-act.vkaraisk.31,comment-about-understanding,ami_da_12,688.76,689.0,240.0,Huh ?,positive,strong_keyword_match
+TS3007c,D,TS3007c.D.dialog-act.dharshi.67,comment-about-understanding,ami_da_12,721.19,721.34,150.0,Hmm ?,positive,strong_keyword_match
+TS3007d,A,TS3007d.A.dialog-act.dharshi.225,comment-about-understanding,ami_da_12,1427.98,1428.26,280.0,Sorry ?,positive,strong_keyword_match
+TS3007d,A,TS3007d.A.dialog-act.dharshi.371,comment-about-understanding,ami_da_12,2163.63,2163.8,170.0,Hmm ?,positive,strong_keyword_match
+TS3007d,A,TS3007d.A.dialog-act.dharshi.372,comment-about-understanding,ami_da_12,2164.87,2165.14,270.0,Sorry ?,positive,strong_keyword_match
+TS3007d,A,TS3007d.A.dialog-act.dharshi.473,comment-about-understanding,ami_da_12,2554.4,2554.55,150.0,Hmm ?,positive,strong_keyword_match
+TS3007d,B,TS3007d.B.dialog-act.dharshi.174,comment-about-understanding,ami_da_12,1106.99,1107.16,170.0,Hmm ?,positive,strong_keyword_match
+TS3008a,D,TS3008a.D.dialog-act.dharshi.6,comment-about-understanding,ami_da_12,105.86,106.02,160.0,What ?,positive,strong_keyword_match
+TS3008b,A,TS3008b.A.dialog-act.dharshi.102,comment-about-understanding,ami_da_12,945.5,945.86,360.0,Sorry ?,positive,strong_keyword_match
+TS3008c,D,TS3008c.D.dialog-act.dharshi.40,comment-about-understanding,ami_da_12,808.57,808.82,250.0,Sorry ?,positive,strong_keyword_match
+TS3008c,D,TS3008c.D.dialog-act.dharshi.233,comment-about-understanding,ami_da_12,1731.74,1732.78,1040.0,What ?,positive,strong_keyword_match
+TS3008c,D,TS3008c.D.dialog-act.dharshi.254,comment-about-understanding,ami_da_12,1920.66,1920.86,200.0,What ?,positive,strong_keyword_match
+TS3008d,A,TS3008d.A.dialog-act.dharshi.396,comment-about-understanding,ami_da_12,2140.43,2140.63,200.0,Sorry ?,positive,strong_keyword_match
+TS3008d,D,TS3008d.D.dialog-act.dharshi.130,comment-about-understanding,ami_da_12,950.09,950.23,140.0,What ?,positive,strong_keyword_match
+TS3009a,A,TS3009a.A.dialog-act.s9553330.94,comment-about-understanding,ami_da_12,370.23,370.45,220.0,Hmm ?,positive,strong_keyword_match
+TS3009a,A,TS3009a.A.dialog-act.s9553330.99,comment-about-understanding,ami_da_12,382.34,382.53,190.0,what ?,positive,strong_keyword_match
+TS3009a,A,TS3009a.A.dialog-act.s9553330.181,comment-about-understanding,ami_da_12,656.288,663.99,7702.0,What ?,positive,strong_keyword_match
+TS3009b,B,TS3009b.B.dialog-act.s9553330.55,comment-about-understanding,ami_da_12,1137.02,1137.18,160.0,Hmm ?,positive,strong_keyword_match
+TS3009b,C,TS3009b.C.dialog-act.s9553330.186,comment-about-understanding,ami_da_12,1711.79,1712.0,210.0,Huh ?,positive,strong_keyword_match
+TS3009c,A,TS3009c.A.dialog-act.s9553330.360,comment-about-understanding,ami_da_12,2189.7,2190.958,1258.0,What ?,positive,strong_keyword_match
+TS3009c,B,TS3009c.B.dialog-act.s9553330.59,comment-about-understanding,ami_da_12,944.5,945.08,580.0,Hmm ?,positive,strong_keyword_match
+TS3009c,B,TS3009c.B.dialog-act.s9553330.78,comment-about-understanding,ami_da_12,1068.61,1068.8,190.0,Hmm ?,positive,strong_keyword_match
+TS3009c,C,TS3009c.C.dialog-act.s9553330.226,comment-about-understanding,ami_da_12,1472.67,1473.21,540.0,Huh ?,positive,strong_keyword_match
+TS3009d,B,TS3009d.B.dialog-act.s9553330.101,comment-about-understanding,ami_da_12,982.42,982.76,340.0,The what ?,positive,short_question
+TS3009d,C,TS3009d.C.dialog-act.s9553330.202,comment-about-understanding,ami_da_12,977.89,978.4,510.0,The what ?,positive,short_question
+TS3009d,C,TS3009d.C.dialog-act.s9553330.216,comment-about-understanding,ami_da_12,1035.73,1035.98,250.0,Huh ?,positive,strong_keyword_match
+TS3010b,A,TS3010b.A.dialog-act.s9553330.129,comment-about-understanding,ami_da_12,1542.79,1543.14,350.0,Sorry ?,positive,strong_keyword_match
+TS3010c,A,TS3010c.A.dialog-act.dharshi.160,comment-about-understanding,ami_da_12,1533.59,1533.88,290.0,Sorry ?,positive,strong_keyword_match
+TS3010c,B,TS3010c.B.dialog-act.dharshi.76,comment-about-understanding,ami_da_12,1067.43,1067.63,200.0,What ?,positive,strong_keyword_match
+TS3010c,C,TS3010c.C.dialog-act.dharshi.136,comment-about-understanding,ami_da_12,1118.64,1120.1,1460.0,Sorry ?,positive,strong_keyword_match
+TS3010c,D,TS3010c.D.dialog-act.dharshi.135,comment-about-understanding,ami_da_12,2019.87,2020.02,150.0,What ?,positive,strong_keyword_match
+TS3010d,A,TS3010d.A.dialog-act.dharshi.33,comment-about-understanding,ami_da_12,174.23,174.5,270.0,Sorry ?,positive,strong_keyword_match
+TS3010d,A,TS3010d.A.dialog-act.dharshi.183,comment-about-understanding,ami_da_12,1126.14,1126.56,420.0,Sorry ?,positive,strong_keyword_match
+TS3010d,C,TS3010d.C.dialog-act.dharshi.2,comment-about-understanding,ami_da_12,37.38,37.75,370.0,Huh ?,positive,strong_keyword_match
+TS3010d,C,TS3010d.C.dialog-act.dharshi.97,comment-about-understanding,ami_da_12,1131.044,1132.13,1086.0,What ?,positive,strong_keyword_match
+TS3011b,A,TS3011b.A.dialog-act.vkaraisk.7,comment-about-understanding,ami_da_12,42.39,42.69,300.0,Sorry ?,positive,strong_keyword_match
+TS3011c,B,TS3011c.B.dialog-act.vkaraisk.174,comment-about-understanding,ami_da_12,2004.03,2004.93,900.0,What what did you say ?,positive,explicit_non_understanding
+TS3012a,D,TS3012a.D.dialog-act.vkaraisk.21,comment-about-understanding,ami_da_12,356.2,356.55,350.0,What ?,positive,strong_keyword_match
+TS3012b,A,TS3012b.A.dialog-act.vkaraisk.469,comment-about-understanding,ami_da_12,1679.27,1679.56,290.0,A what ?,positive,short_question
+TS3012b,A,TS3012b.A.dialog-act.vkaraisk.618,comment-about-understanding,ami_da_12,2115.83,2116.09,260.0,Sorry ?,positive,strong_keyword_match
+TS3012b,D,TS3012b.D.dialog-act.vkaraisk.54,comment-about-understanding,ami_da_12,233.37,234.75,1380.0,hmm ?,positive,strong_keyword_match
+TS3012b,D,TS3012b.D.dialog-act.vkaraisk.80,comment-about-understanding,ami_da_12,342.44,342.7,260.0,What ?,positive,strong_keyword_match
+TS3012b,D,TS3012b.D.dialog-act.vkaraisk.178,comment-about-understanding,ami_da_12,1543.09,1543.5,410.0,sorry ?,positive,strong_keyword_match
+TS3012c,A,TS3012c.A.dialog-act.vkaraisk.512,comment-about-understanding,ami_da_12,1755.96,1756.1,140.0,What ?,positive,strong_keyword_match
+TS3012c,B,TS3012c.B.dialog-act.vkaraisk.5,comment-about-understanding,ami_da_12,49.0,49.23,230.0,Hmm ?,positive,strong_keyword_match
+TS3012c,B,TS3012c.B.dialog-act.vkaraisk.262,comment-about-understanding,ami_da_12,1874.57,1874.84,270.0,Hmm ?,positive,strong_keyword_match
+TS3012c,D,TS3012c.D.dialog-act.vkaraisk.204,comment-about-understanding,ami_da_12,1756.63,1757.13,500.0,What ?,positive,strong_keyword_match
+TS3012d,A,TS3012d.A.dialog-act.vkaraisk.49,comment-about-understanding,ami_da_12,133.512,135.02,1508.0,What ?,positive,strong_keyword_match
+TS3012d,D,TS3012d.D.dialog-act.vkaraisk.2,comment-about-understanding,ami_da_12,135.38,135.54,160.0,Hmm ?,positive,strong_keyword_match
+TS3012d,D,TS3012d.D.dialog-act.vkaraisk.116,comment-about-understanding,ami_da_12,1060.7,1061.12,420.0,What uh ?,positive,short_question
