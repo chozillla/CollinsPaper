@@ -315,7 +315,7 @@ def build_dashboard():
         font=dict(family="Inter, system-ui, sans-serif", size=11, color=C["text"]),
         showlegend=False,
         barmode="group",
-        margin=dict(t=60, b=40, l=60, r=40),
+        margin=dict(t=120, b=40, l=60, r=40),
     )
 
     # Per-subplot axis labels
