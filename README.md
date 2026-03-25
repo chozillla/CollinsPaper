@@ -20,6 +20,8 @@ We replicate the 10-shot audio LLM prompting method on a different dataset (AMI 
 
 The 10-shot Gemini classifier is **3.8x better than random guessing** and **2.5x better than the hotword baseline**, confirming that audio language models can detect hearing difficulty moments from conversational audio.
 
+**[Interactive Dashboard](https://chozillla.github.io/CollinsPaper/)** — explore all trial results with hover, zoom, and pan.
+
 ### Why Random Guessing is So Low
 
 The dataset is highly imbalanced — only **9.1%** of segments are positive (105 out of 1,155). A random classifier that guesses 50/50 will predict positive for ~half the segments, but only ~9% are actually positive, resulting in very low precision and an F1 of just 0.15. A base-rate-matched random classifier (guessing positive 9% of the time) does even worse at F1 = 0.09 because it rarely predicts positive at all, achieving almost no recall. This establishes a clear floor that any meaningful classifier must exceed.
@@ -91,6 +93,37 @@ Following the paper:
 
 ---
 
+## Baseline Methods
+
+### ASR Hotword Heuristic (Whisper)
+
+Replicates the paper's hotword baseline using OpenAI's Whisper speech recognition model. Each 4-second audio segment is transcribed, and the transcript is checked for keywords commonly associated with hearing difficulty:
+
+- **Strong indicators**: "huh", "what", "pardon", "sorry", "excuse me"
+- **Phrase patterns**: "say that again", "repeat that", "didn't catch", "can't hear", "come again"
+
+If any keyword or phrase is detected in the transcript, the segment is classified as positive (HDM). This is a purely lexical approach — it ignores all acoustic/prosodic cues and depends entirely on Whisper's transcription accuracy in noisy multi-speaker audio.
+
+**Result: F1 = 0.23 ± 0.11** — significantly lower than the paper's hotword baseline (F1 = 0.39), likely because AMI headset mix audio with overlapping speakers degrades transcription quality.
+
+### Random 50/50 Baseline
+
+A coin-flip classifier that predicts positive with 50% probability, independent of the audio. This tests what happens when a model guesses randomly without any signal.
+
+Because the dataset is heavily imbalanced (9.1% positive), predicting positive half the time produces many false positives, resulting in very low precision (~0.09). Averaged over 100 random seeds per CV split.
+
+**Result: F1 = 0.15 ± 0.03** — establishes the absolute floor for uninformed guessing.
+
+### Random Base-rate Baseline
+
+A smarter random classifier that matches the dataset's class distribution — predicts positive with only 9.1% probability (the true positive rate). This tests whether simply knowing the base rate is enough.
+
+Since it rarely predicts positive, it achieves slightly better precision than 50/50 but almost no recall. Averaged over 100 random seeds per CV split.
+
+**Result: F1 = 0.09 ± 0.06** — even worse than 50/50 because the rare positive predictions almost never land on actual HDMs.
+
+---
+
 ## 10-Shot Audio LLM Approach
 
 We replicate the paper's best method (Section 2.3) using **Gemini 3.1 Pro** instead of Gemini 1.5 Pro.
@@ -148,6 +181,7 @@ CollinsPaper/
 │   ├── gemini_audio_classifier.py  # 10-shot Gemini 3.1 Pro classifier
 │   ├── baseline_hotword.py         # ASR hotword heuristic (Whisper)
 │   ├── random_baseline.py          # Random guessing baseline
+│   ├── dashboard.py                # Generate interactive HTML dashboard
 │   └── evaluate_all.py             # Compare all methods
 ├── data/
 │   ├── annotations/                # AMI corpus annotations (NXT XML)
@@ -158,7 +192,8 @@ CollinsPaper/
 ├── results/
 │   ├── gemini_10shot_results.json  # Gemini 3.1 Pro results
 │   ├── baseline_hotword.json       # Hotword baseline results
-│   └── random_baseline.json        # Random baseline results
+│   ├── random_baseline.json        # Random baseline results
+│   └── dashboard.html              # Interactive results dashboard
 ├── run_pipeline.sh                 # Run the full pipeline
 ├── pyproject.toml                  # Dependencies (managed by uv)
 └── .env                            # API keys (not tracked)
