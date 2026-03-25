@@ -468,10 +468,10 @@ section{margin-bottom:40px}
   color:rgba(255,255,255,.5);font-size:.68rem;font-weight:600;
   text-transform:uppercase;letter-spacing:.06em}
 .wave-wrap{position:relative;border-radius:10px;overflow:hidden}
-.wave-canvas{width:100%;height:140px;display:block;cursor:pointer}
-.prob-canvas{width:100%;height:90px;display:block}
-.tl-wave-canvas{height:140px}
-.tl-prob-canvas{height:110px}
+.wave-canvas{width:100%;height:220px;display:block;cursor:pointer}
+.prob-canvas{width:100%;height:140px;display:block}
+.tl-wave-canvas{height:200px}
+.tl-prob-canvas{height:160px}
 .wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
   background:rgba(255,255,255,.9);box-shadow:0 0 8px rgba(255,255,255,.4);
   pointer-events:none;opacity:0;transition:opacity .15s}
