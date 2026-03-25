@@ -44,11 +44,17 @@ def load_data():
         random_bl = json.load(f)
     with open(DATA_DIR / "hdm_filtered.json") as f:
         annotations = json.load(f)
-    return gemini, hotword, random_bl, annotations
+    # Example audio clips (base64-encoded WAV)
+    example_audio_path = DATA_DIR / "example_audio.json"
+    example_audio = None
+    if example_audio_path.exists():
+        with open(example_audio_path) as f:
+            example_audio = json.load(f)
+    return gemini, hotword, random_bl, annotations, example_audio
 
 
 def build_dashboard():
-    gemini, hotword, random_bl, annotations = load_data()
+    gemini, hotword, random_bl, annotations, example_audio = load_data()
 
     # ── Aggregate data ──────────────────────────────────────────────────────
     methods = [
@@ -357,7 +363,7 @@ def build_dashboard():
         include_plotlyjs=False, full_html=False, config=plotly_config,
     )
 
-    page_html = _build_full_page(chart_html, gemini, hotword, random_bl, annotations)
+    page_html = _build_full_page(chart_html, gemini, hotword, random_bl, annotations, example_audio)
 
     # Main output (self-contained, works offline)
     output = RESULTS_DIR / "dashboard.html"
@@ -376,7 +382,41 @@ def build_dashboard():
     return output
 
 
-def _build_full_page(chart_html, gemini, hotword, random_bl, annotations):
+def _build_audio_section(example_audio):
+    """Build HTML for the audio examples section."""
+    pos = example_audio["positive"]
+    neg = example_audio["negative"]
+    return f"""<div class="section">
+  <h2>Hear It Yourself: HDM Audio Examples</h2>
+  <p>These are real 4-second audio clips from the AMI Meeting Corpus (meeting {pos['meeting']}).
+     Listen to hear the difference between a moment with hearing difficulty and normal conversation.
+     Gemini 3.1 Pro correctly identified both.</p>
+  <div class="methods-grid">
+    <div class="method-card" style="border-top-color: #EF5350;">
+      <div class="method-name" style="color: #EF5350;">HDM Detected (True Positive)</div>
+      <div class="method-desc" style="margin: 8px 0;">Speaker {pos['speaker']} says <strong>"{pos['text']}"</strong> at {pos['time']}</div>
+      <audio controls style="width:100%; margin: 8px 0;">
+        <source src="data:audio/wav;base64,{pos['b64']}" type="audio/wav">
+      </audio>
+      <div class="method-detail">Gemini heard the confused tone and the keyword "Sorry?" and
+        correctly predicted <strong style="color:#EF5350;">POSITIVE</strong> — this is a hearing
+        difficulty moment. Notice the questioning intonation at the end of the clip.</div>
+    </div>
+    <div class="method-card" style="border-top-color: #66BB6A;">
+      <div class="method-name" style="color: #66BB6A;">No HDM (True Negative)</div>
+      <div class="method-desc" style="margin: 8px 0;">{neg['text']} at {neg['time']}</div>
+      <audio controls style="width:100%; margin: 8px 0;">
+        <source src="data:audio/wav;base64,{neg['b64']}" type="audio/wav">
+      </audio>
+      <div class="method-detail">Normal meeting conversation — no signs of hearing difficulty.
+        Gemini correctly predicted <strong style="color:#66BB6A;">NEGATIVE</strong>. The speakers
+        are engaged in regular discussion without any confusion or requests for repetition.</div>
+    </div>
+  </div>
+</div>"""
+
+
+def _build_full_page(chart_html, gemini, hotword, random_bl, annotations, example_audio=None):
     """Build the complete HTML page with explanatory content around the chart."""
 
     # Compute summary stats for the info cards
@@ -681,6 +721,9 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations):
     </div>
   </div>
 </div>
+
+<!-- ═══ AUDIO EXAMPLES ═══ -->
+""" + (_build_audio_section(example_audio) if example_audio else "") + """
 
 <!-- ═══ CHART GUIDE ═══ -->
 <div class="section">
