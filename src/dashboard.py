@@ -52,9 +52,9 @@ def build_dashboard():
 
     # ── Aggregate data ──────────────────────────────────────────────────────
     methods = [
-        ("Gemini 3.1 Pro (10-shot)", gemini["avg_f1"], gemini["std_f1"],
+        ("Gemini 3.1 Pro", gemini["avg_f1"], gemini["std_f1"],
          [s["f1"] for s in gemini["splits"]], C["gemini"]),
-        ("ASR Hotword (Whisper)", hotword["avg_f1"], hotword["std_f1"],
+        ("ASR Hotword", hotword["avg_f1"], hotword["std_f1"],
          [s["f1"] for s in hotword["splits"]], C["hotword"]),
         ("Random 50/50",
          random_bl["random_50_50"]["avg_f1"],
@@ -82,7 +82,7 @@ def build_dashboard():
             [{"type": "histogram"}, {"type": "histogram"}, {"type": "pie"}],
         ],
         vertical_spacing=0.14,
-        horizontal_spacing=0.08,
+        horizontal_spacing=0.14,
     )
 
     # Style subplot titles — nudge up so they sit above the chart area
@@ -310,7 +310,7 @@ def build_dashboard():
             x=0.5, y=0.995, font=dict(size=22, color="#1565C0"),
         ),
         height=2600,
-        width=1400,
+        width=1600,
         template="plotly_white",
         font=dict(family="Inter, system-ui, sans-serif", size=11, color=C["text"]),
         showlegend=False,
@@ -318,13 +318,20 @@ def build_dashboard():
         margin=dict(t=120, b=40, l=60, r=40),
     )
 
+    # Enable automargin on all axes so labels are never clipped
+    fig.update_xaxes(automargin=True, tickfont=dict(size=10))
+    fig.update_yaxes(automargin=True, tickfont=dict(size=10))
+
     # Per-subplot axis labels
     fig.update_yaxes(title_text="F1 Score", range=[0, 1.08], row=1, col=1)
+    fig.update_xaxes(tickangle=-30, row=1, col=1)  # angle bar labels
     fig.update_yaxes(range=[-0.05, 1.05], row=1, col=2)
+    fig.update_xaxes(tickangle=-30, row=1, col=2)
     fig.update_xaxes(title_text="Count", row=1, col=3)
     fig.update_yaxes(title_text="F1 Score", range=[0, 1.05], row=2, col=1)
     fig.update_yaxes(title_text="Segments", row=2, col=2)
     fig.update_yaxes(title_text="Count", row=2, col=3)
+    fig.update_xaxes(tickangle=-30, row=2, col=3)  # angle pred vs actual labels
     fig.update_xaxes(title_text="Recall", range=[-0.05, 1.05], row=3, col=3)
     fig.update_yaxes(title_text="Precision", range=[-0.05, 1.05], row=3, col=3)
     fig.update_xaxes(title_text="Predicted Probability", row=4, col=1)
