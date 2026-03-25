@@ -148,12 +148,16 @@ def build_dashboard():
     # ────────────────────────────────────────────────────────────────────────
     split_x = [f"Split {i}" for i in range(5)]
     for name, _, _, f1s, color in methods:
+        # Shorten name for inline label
+        short = name.split("(")[0].strip()
         fig.add_trace(go.Scatter(
-            x=split_x, y=f1s, mode="lines+markers",
+            x=split_x, y=f1s, mode="lines+markers+text",
             name=name, line=dict(color=color, width=2.5),
             marker=dict(size=8),
+            text=[""] * 4 + [short],  # label at last point
+            textposition="middle right", textfont=dict(size=9, color=color),
             hovertemplate="<b>%{x}</b><br>F1: %{y:.3f}<extra></extra>",
-            legendgroup=name, showlegend=True,
+            legendgroup=name, showlegend=False,
         ), row=2, col=1)
     fig.add_hline(y=0.87, line_dash="dash", line_color=C["paper"], line_width=1,
                   row=2, col=1)
@@ -169,7 +173,7 @@ def build_dashboard():
         x=split_labels, y=n_neg,
         name="Negative", marker_color=C["neg"],
         hovertemplate="<b>%{x}</b><br>Negative: %{y}<extra></extra>",
-        legendgroup="comp", showlegend=True,
+        legendgroup="comp", showlegend=False,
         offsetgroup="comp",
     ), row=2, col=2)
     fig.add_trace(go.Bar(
@@ -177,7 +181,7 @@ def build_dashboard():
         base=n_neg,  # stack on top of negatives
         name="Positive (HDM)", marker_color=C["pos"],
         hovertemplate="<b>%{x}</b><br>Positive: %{y}<extra></extra>",
-        legendgroup="comp", showlegend=True,
+        legendgroup="comp", showlegend=False,
         offsetgroup="comp",
     ), row=2, col=2)
 
@@ -191,13 +195,13 @@ def build_dashboard():
             x=x_labels, y=[s["n_pos"] for s in result["splits"]],
             name=f"{method_name} Actual", marker_color=color, opacity=0.4,
             hovertemplate="<b>%{x}</b><br>Actual: %{y}<extra></extra>",
-            legendgroup="pred", showlegend=(method_name == "Gemini"),
+            legendgroup="pred", showlegend=False,
         ), row=2, col=3)
         fig.add_trace(go.Bar(
             x=x_labels, y=[s["n_pred_pos"] for s in result["splits"]],
             name=f"{method_name} Predicted", marker_color=color,
             hovertemplate="<b>%{x}</b><br>Predicted: %{y}<extra></extra>",
-            legendgroup="pred", showlegend=(method_name == "Gemini"),
+            legendgroup="pred", showlegend=False,
         ), row=2, col=3)
 
     # ────────────────────────────────────────────────────────────────────────
@@ -265,14 +269,14 @@ def build_dashboard():
         marker_color=C["gemini"], opacity=0.6,
         xbins=dict(start=0, end=1, size=0.1),
         hovertemplate="Prob: %{x}<br>Count: %{y}<extra></extra>",
-        legendgroup="conf", showlegend=True,
+        legendgroup="conf", showlegend=False,
     ), row=4, col=1)
     fig.add_trace(go.Histogram(
         x=probs_pos, name=f"HDM Positive (n={len(probs_pos)})",
         marker_color=C["pos"], opacity=0.7,
         xbins=dict(start=0, end=1, size=0.1),
         hovertemplate="Prob: %{x}<br>Count: %{y}<extra></extra>",
-        legendgroup="conf", showlegend=True,
+        legendgroup="conf", showlegend=False,
     ), row=4, col=1)
     fig.add_vline(x=0.5, line_dash="dot", line_color="#333", row=4, col=1)
 
@@ -302,24 +306,16 @@ def build_dashboard():
     # ── Layout ──────────────────────────────────────────────────────────────
     fig.update_layout(
         title=dict(
-            text=(
-                "<b>HDM Detection — Trial Results Dashboard</b>"
-                "<br><span style='font-size:12px;color:#666'>Collins et al. Replication · "
-                "AMI Meeting Corpus · 5-Fold Monte Carlo CV · Hover/zoom/click to explore</span>"
-            ),
-            x=0.5, y=0.98, font=dict(size=22, color="#1565C0"),
+            text="<b>HDM Detection — Trial Results Dashboard</b>",
+            x=0.5, y=0.995, font=dict(size=22, color="#1565C0"),
         ),
-        height=2000,
+        height=2200,
         width=1400,
         template="plotly_white",
         font=dict(family="Inter, system-ui, sans-serif", size=11, color=C["text"]),
-        legend=dict(
-            orientation="h", yanchor="top", y=-0.02, xanchor="center", x=0.5,
-            font_size=10, bgcolor="rgba(255,255,255,0.9)",
-            bordercolor="#E0E0E0", borderwidth=1,
-        ),
+        showlegend=False,
         barmode="group",
-        margin=dict(t=140, b=80, l=60, r=40),
+        margin=dict(t=60, b=40, l=60, r=40),
     )
 
     # Per-subplot axis labels
