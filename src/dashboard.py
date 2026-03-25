@@ -410,20 +410,21 @@ def build_dashboard():
 _CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#f0f2f5;
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#fff;
   color:#1e293b;line-height:1.6;-webkit-font-smoothing:antialiased}
 
-/* Hero */
-.hero{background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);
-  color:#fff;padding:44px 24px 52px;text-align:center}
-.hero-badge{display:inline-block;background:rgba(59,130,246,.15);color:#93c5fd;
-  font-size:.72rem;font-weight:600;padding:4px 14px;border-radius:20px;
-  margin-bottom:12px;letter-spacing:.02em}
-.hero h1{font-size:2.2rem;font-weight:800;letter-spacing:-.03em;margin-bottom:6px}
-.hero p{font-size:.92rem;opacity:.55;max-width:540px;margin:0 auto}
+/* Hero — clean white academic style */
+.hero{background:#fff;color:#1e293b;padding:48px 24px 32px;text-align:center;
+  border-bottom:1px solid #e2e8f0}
+.hero-badge{display:inline-block;background:#f0f7ff;color:#3b82f6;
+  font-size:.78rem;font-weight:600;padding:5px 16px;border-radius:20px;
+  margin-bottom:14px;letter-spacing:.02em;border:1px solid #bfdbfe}
+.hero h1{font-size:2.2rem;font-weight:800;letter-spacing:-.03em;margin-bottom:8px;
+  color:#0f172a}
+.hero p{font-size:.95rem;color:#64748b;max-width:600px;margin:0 auto}
 
 /* Sticky nav */
-.nav{position:sticky;top:0;z-index:100;background:rgba(240,242,245,.88);
+.nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.92);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   border-bottom:1px solid #e2e8f0;display:flex;justify-content:center;gap:32px;
   padding:13px 24px}
@@ -433,54 +434,49 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#f0f2f5;
 
 /* Container */
 .container{max-width:1400px;margin:0 auto;padding:0 24px}
-section{margin-bottom:40px}
+section{margin-bottom:48px}
 
 /* KPI cards */
 .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;
-  margin-top:-28px;position:relative;z-index:1}
-.kpi-card{background:#fff;border-radius:14px;padding:20px;
-  box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);
-  text-align:center;border-left:4px solid #ccc;
+  margin-top:24px}
+.kpi-card{background:#fff;border-radius:12px;padding:20px;
+  border:1px solid #e2e8f0;text-align:center;
   transition:transform .2s,box-shadow .2s}
-.kpi-card:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.1)}
-.kpi-card .label{font-size:.7rem;color:#64748b;text-transform:uppercase;
+.kpi-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.kpi-card .label{font-size:.72rem;color:#64748b;text-transform:uppercase;
   letter-spacing:.06em;margin-bottom:2px}
 .kpi-card .value{font-size:2rem;font-weight:800}
-.kpi-card .sub{font-size:.68rem;color:#94a3b8;margin-top:2px}
+.kpi-card .sub{font-size:.7rem;color:#94a3b8;margin-top:2px}
 
-/* Wave section — light card design */
-.wave-section{background:#fff;border-radius:16px;padding:28px 32px;
-  box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06)}
-.wave-header h2{color:#1e293b;font-size:1.3rem;font-weight:700}
-.wave-header p{color:#64748b;font-size:.85rem;margin-top:4px}
+/* Wave section — clean white */
+.wave-section{background:#fff;border-radius:12px;padding:28px 32px;
+  border:1px solid #e2e8f0}
+.wave-header h2{color:#0f172a;font-size:1.4rem;font-weight:700}
+.wave-header p{color:#64748b;font-size:.88rem;margin-top:4px}
 .wave-tabs{display:flex;gap:8px;margin:20px 0}
-.wave-tabs button{background:#f1f5f9;color:#64748b;
+.wave-tabs button{background:#f8fafc;color:#64748b;
   border:1px solid #e2e8f0;border-radius:8px;padding:10px 22px;
   font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
-.wave-tabs button.active,.wave-tabs button:hover{background:#3b82f6;
-  color:#fff;border-color:#3b82f6}
+.wave-tabs button.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+.wave-tabs button:hover:not(.active){background:#f1f5f9}
 .wave-panel{display:none}.wave-panel.active{display:block}
 
 /* Dual visualization rows */
-.dual-viz{display:flex;flex-direction:column;gap:4px}
+.dual-viz{display:flex;flex-direction:column;gap:6px}
 .viz-row{position:relative}
-.viz-label{position:absolute;left:10px;top:8px;z-index:2;
-  color:#64748b;font-size:.75rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:.05em;
-  background:rgba(255,255,255,.85);padding:2px 8px;border-radius:4px}
-.wave-wrap{position:relative;border-radius:12px;overflow:hidden;
+.wave-wrap{position:relative;border-radius:8px;overflow:hidden;
   border:1px solid #e2e8f0}
 .wave-canvas{width:100%;height:500px;display:block;cursor:pointer}
-.prob-canvas{width:100%;height:220px;display:block;border-radius:12px;
+.prob-canvas{width:100%;height:250px;display:block;border-radius:8px;
   border:1px solid #e2e8f0}
-.tl-wave-canvas{height:400px}
-.tl-prob-canvas{height:280px}
+.tl-wave-canvas{height:350px}
+.tl-prob-canvas{height:300px}
 .wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
-  background:#3b82f6;box-shadow:0 0 8px rgba(59,130,246,.5);
+  background:#3b82f6;box-shadow:0 0 6px rgba(59,130,246,.4);
   pointer-events:none;opacity:0;transition:opacity .15s}
 .wave-cursor.active{opacity:1}
 .wave-controls{display:flex;justify-content:space-between;align-items:center;
-  margin-top:16px;padding:14px 18px;background:#f8fafc;border-radius:12px;
+  margin-top:16px;padding:14px 18px;background:#f8fafc;border-radius:10px;
   border:1px solid #e2e8f0}
 .wave-left{display:flex;align-items:center;gap:14px}
 .play-btn{width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;
@@ -491,13 +487,13 @@ section{margin-bottom:40px}
 .wave-meta strong{color:#1e293b;font-size:.9rem;display:block}
 .wave-meta span{color:#64748b;font-size:.78rem}
 .wave-right{display:flex;align-items:center;gap:12px}
-.prob-badge{font-size:.8rem;font-weight:700;padding:6px 16px;border-radius:20px}
+.prob-badge{font-size:.82rem;font-weight:700;padding:6px 16px;border-radius:20px}
 .prob-badge.hdm{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
 .prob-badge.ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
 
 /* Timeline legend */
 .timeline-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:14px;padding:10px 0}
-.tl-item{color:#64748b;font-size:.8rem;display:flex;align-items:center;gap:6px}
+.tl-item{color:#475569;font-size:.82rem;display:flex;align-items:center;gap:6px}
 .tl-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
 .tl-dot.hdm{background:#ef4444}
 .tl-dot.wave{background:#3b82f6}
@@ -505,24 +501,24 @@ section{margin-bottom:40px}
 .tl-dot.thresh{background:#94a3b8}
 
 /* Chart card */
-.chart-card{background:#fff;border-radius:16px;padding:28px;
-  box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.chart-card h2{font-size:1.15rem;font-weight:700;color:#1e293b}
-.chart-card>p{color:#94a3b8;font-size:.8rem;margin-top:2px;margin-bottom:16px}
+.chart-card{background:#fff;border-radius:12px;padding:28px;
+  border:1px solid #e2e8f0}
+.chart-card h2{font-size:1.2rem;font-weight:700;color:#0f172a}
+.chart-card>p{color:#64748b;font-size:.85rem;margin-top:2px;margin-bottom:16px}
 
 /* Accordion */
-.accordion{background:#fff;border-radius:16px;overflow:hidden;
-  box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.accordion{background:#fff;border-radius:12px;overflow:hidden;
+  border:1px solid #e2e8f0}
 .accordion details{border-bottom:1px solid #f1f5f9}
 .accordion details:last-child{border-bottom:none}
-.accordion summary{padding:18px 24px;cursor:pointer;font-weight:600;font-size:.9rem;
-  color:#334155;transition:background .15s;list-style:none}
+.accordion summary{padding:18px 24px;cursor:pointer;font-weight:600;font-size:.92rem;
+  color:#1e293b;transition:background .15s;list-style:none}
 .accordion summary::-webkit-details-marker{display:none}
 .accordion summary::before{content:'\\25B8';display:inline-block;margin-right:10px;
   transition:transform .2s;color:#94a3b8}
 .accordion details[open] summary::before{transform:rotate(90deg)}
 .accordion summary:hover{background:#f8fafc}
-.acc-content{padding:0 24px 20px 38px;font-size:.85rem;color:#64748b;line-height:1.7}
+.acc-content{padding:0 24px 20px 38px;font-size:.88rem;color:#475569;line-height:1.7}
 .acc-content p{margin-bottom:8px}
 .acc-content ol{padding-left:20px}
 .acc-content li{margin-bottom:6px}
@@ -530,10 +526,11 @@ section{margin-bottom:40px}
 .method-item{display:flex;align-items:flex-start;gap:10px}
 .method-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;margin-top:5px}
 .metric-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.metric-grid>div{background:#f8fafc;padding:12px 16px;border-radius:8px;font-size:.83rem}
+.metric-grid>div{background:#f8fafc;padding:12px 16px;border-radius:8px;font-size:.85rem}
 
 /* Footer */
-.footer{text-align:center;padding:40px 24px;color:#94a3b8;font-size:.78rem}
+.footer{text-align:center;padding:40px 24px;color:#94a3b8;font-size:.8rem;
+  border-top:1px solid #e2e8f0;margin-top:24px}
 .footer a{color:#3b82f6;text-decoration:none}
 .footer a:hover{text-decoration:underline}
 .footer p+p{margin-top:6px}
@@ -1054,17 +1051,11 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
     <!-- Panel 0: Positive HDM -->
     <div class="wave-panel active" data-panel="0">
       <div class="dual-viz">
-        <div class="viz-row">
-          <div class="viz-label">Waveform</div>
-          <div class="wave-wrap">
-            <canvas id="wave-pos" class="wave-canvas"></canvas>
-            <div class="wave-cursor" id="cursor-pos"></div>
-          </div>
+        <div class="wave-wrap">
+          <canvas id="wave-pos" class="wave-canvas"></canvas>
+          <div class="wave-cursor" id="cursor-pos"></div>
         </div>
-        <div class="viz-row">
-          <div class="viz-label">Model Output</div>
-          <canvas id="prob-pos" class="prob-canvas"></canvas>
-        </div>
+        <canvas id="prob-pos" class="prob-canvas"></canvas>
       </div>
       <audio id="audio-pos" preload="auto">
         <source src="data:audio/wav;base64,{pos_b64}" type="audio/wav">
@@ -1088,17 +1079,11 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
     <!-- Panel 1: Negative -->
     <div class="wave-panel" data-panel="1">
       <div class="dual-viz">
-        <div class="viz-row">
-          <div class="viz-label">Waveform</div>
-          <div class="wave-wrap">
-            <canvas id="wave-neg" class="wave-canvas"></canvas>
-            <div class="wave-cursor" id="cursor-neg"></div>
-          </div>
+        <div class="wave-wrap">
+          <canvas id="wave-neg" class="wave-canvas"></canvas>
+          <div class="wave-cursor" id="cursor-neg"></div>
         </div>
-        <div class="viz-row">
-          <div class="viz-label">Model Output</div>
-          <canvas id="prob-neg" class="prob-canvas"></canvas>
-        </div>
+        <canvas id="prob-neg" class="prob-canvas"></canvas>
       </div>
       <audio id="audio-neg" preload="auto">
         <source src="data:audio/wav;base64,{neg_b64}" type="audio/wav">
@@ -1122,14 +1107,8 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
     <!-- Panel 2: Meeting Timeline (Figure 1 style) -->
     <div class="wave-panel" data-panel="2">
       <div class="dual-viz">
-        <div class="viz-row">
-          <div class="viz-label">Waveform</div>
-          <canvas id="wave-timeline" class="wave-canvas tl-wave-canvas"></canvas>
-        </div>
-        <div class="viz-row">
-          <div class="viz-label">P(HDM)</div>
-          <canvas id="prob-timeline" class="prob-canvas tl-prob-canvas"></canvas>
-        </div>
+        <canvas id="wave-timeline" class="wave-canvas tl-wave-canvas"></canvas>
+        <canvas id="prob-timeline" class="prob-canvas tl-prob-canvas"></canvas>
       </div>
       <div class="timeline-legend">
         <span class="tl-item"><span class="tl-dot hdm"></span> Ground truth HDM</span>
