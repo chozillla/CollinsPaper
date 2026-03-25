@@ -11,6 +11,8 @@ Output: results/dashboard.html  +  docs/index.html
 """
 
 import json
+import base64
+import io
 import wave as wave_mod
 import struct
 import numpy as np
@@ -120,11 +122,32 @@ def generate_prob_trace(hdms_in_range, start_sec, end_sec, step=1.0):
     return [round(float(p), 3) for p in raw]
 
 
+def extract_audio_b64(audio_path, start_sec, end_sec):
+    """Extract a segment from a WAV file and return as base64 WAV string."""
+    with wave_mod.open(str(audio_path), "rb") as wf:
+        sr = wf.getframerate()
+        sw = wf.getsampwidth()
+        ch = wf.getnchannels()
+        s_frame = int(start_sec * sr)
+        e_frame = min(int(end_sec * sr), wf.getnframes())
+        wf.setpos(s_frame)
+        raw = wf.readframes(e_frame - s_frame)
+
+    buf = io.BytesIO()
+    with wave_mod.open(buf, "wb") as out:
+        out.setnchannels(ch)
+        out.setsampwidth(sw)
+        out.setframerate(sr)
+        out.writeframes(raw)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def build_dashboard():
     gemini, hotword, random_bl, annotations, example_audio = load_data()
 
     # ── Meeting timeline waveform ────────────────────────────────────────────
     audio_path = DATA_DIR / "audio" / "ES2002b.Mix-Headset.wav"
+    meeting_audio_b64 = ""
     timeline_data = None
     if audio_path.exists():
         envelope = extract_waveform_envelope(audio_path, 0, 120)
@@ -134,13 +157,14 @@ def build_dashboard():
             for h in annotations if 0 <= h["start_time"] <= 120
         ]
         prob_trace = generate_prob_trace(hdms_in_range, 0, 120, step=1.0)
+        meeting_audio_b64 = extract_audio_b64(audio_path, 0, 120)
         timeline_data = {
             "envelope": envelope, "hdms": hdms_in_range,
             "probs": prob_trace,
             "startSec": 0, "endSec": 120,
         }
         print(f"Timeline: {len(envelope)} points, {len(hdms_in_range)} HDMs, "
-              f"{len(prob_trace)} prob points in 0–120 s")
+              f"{len(prob_trace)} prob points, {len(meeting_audio_b64)//1024}KB audio in 0–120 s")
 
     # ── Aggregate method data ────────────────────────────────────────────────
     methods = [
@@ -388,7 +412,8 @@ def build_dashboard():
     chart_html = fig.to_html(include_plotlyjs=False, full_html=False, config=plotly_config)
 
     page_html = _build_full_page(chart_html, gemini, hotword, random_bl,
-                                  annotations, example_audio, timeline_data)
+                                  annotations, example_audio, timeline_data,
+                                  meeting_audio_b64)
 
     plotly_js_cdn = "https://cdn.plot.ly/plotly-3.0.1.min.js"
     output = RESULTS_DIR / "dashboard.html"
@@ -830,6 +855,7 @@ function initPlayers(){
     var aid=btn.getAttribute('data-audio'),cid=btn.getAttribute('data-cursor');
     if(!aid)return;
     var audio=document.getElementById(aid),cursor=document.getElementById(cid);
+    var tid=btn.getAttribute('data-time'),timeEl=tid?document.getElementById(tid):null;
     var playIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
     var pauseIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
     btn.addEventListener('click',function(){
@@ -847,9 +873,11 @@ function initPlayers(){
     audio.addEventListener('ended',function(){
       btn.classList.remove('playing');btn.innerHTML=playIcon;
       if(cursor){cursor.classList.remove('active');cursor.style.left='0'}
+      if(timeEl&&audio.duration){var d=audio.duration,dm=Math.floor(d/60),ds=Math.floor(d%60);timeEl.textContent='0:00 / '+dm+':'+(ds<10?'0':'')+ds;}
     });
     audio.addEventListener('timeupdate',function(){
       if(cursor&&audio.duration) cursor.style.left=(audio.currentTime/audio.duration*100)+'%';
+      if(timeEl&&audio.duration){var ct=audio.currentTime,d=audio.duration,cm=Math.floor(ct/60),cs=Math.floor(ct%60),dm=Math.floor(d/60),ds=Math.floor(d%60);timeEl.textContent=cm+':'+(cs<10?'0':'')+cs+' / '+dm+':'+(ds<10?'0':'')+ds;}
     });
   });
   document.querySelectorAll('.wave-panel .wave-canvas').forEach(function(cv){
@@ -918,7 +946,7 @@ document.addEventListener('DOMContentLoaded',init);
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
-                     example_audio=None, timeline_data=None):
+                     example_audio=None, timeline_data=None, meeting_audio_b64=""):
     """Build the complete modern HTML page."""
 
     g_prec = sum(s["report"]["1"]["precision"] for s in gemini["splits"]) / len(gemini["splits"])
@@ -1059,6 +1087,21 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
     <div class="wave-panel" data-panel="2">
       <div class="wave-wrap">
         <canvas id="wave-timeline" class="wave-canvas tl-canvas"></canvas>
+        <div class="wave-cursor" id="cursor-timeline"></div>
+      </div>
+      <audio id="audio-meeting" preload="auto">
+        <source src="data:audio/wav;base64,{meeting_audio_b64}" type="audio/wav">
+      </audio>
+      <div class="wave-controls">
+        <div class="wave-left">
+          <button class="play-btn" data-audio="audio-meeting" data-cursor="cursor-timeline" data-time="meeting-time">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <div class="wave-meta">
+            <strong>Meeting ES2002b &mdash; Full Audio (first 2 minutes)</strong>
+            <span id="meeting-time">0:00 / 2:00</span>
+          </div>
+        </div>
       </div>
       <div class="timeline-legend">
         <span class="tl-item"><span class="tl-dot hdm"></span> Ground truth HDM</span>
@@ -1155,6 +1198,7 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
 var TIMELINE_DATA={timeline_json};
 var AUDIO_POS_B64="{pos_b64}";
 var AUDIO_NEG_B64="{neg_b64}";
+var MEETING_AUDIO_B64="{meeting_audio_b64}";
 </script>
 """
     return html + _JS + "\n</body>\n</html>"
