@@ -461,16 +461,11 @@ section{margin-bottom:48px}
 .wave-tabs button:hover:not(.active){background:#f1f5f9}
 .wave-panel{display:none}.wave-panel.active{display:block}
 
-/* Dual visualization rows */
-.dual-viz{display:flex;flex-direction:column;gap:6px}
-.viz-row{position:relative}
+/* Visualization canvases */
 .wave-wrap{position:relative;border-radius:8px;overflow:hidden;
   border:1px solid #e2e8f0}
-.wave-canvas{width:100%;height:500px;display:block;cursor:pointer}
-.prob-canvas{width:100%;height:250px;display:block;border-radius:8px;
-  border:1px solid #e2e8f0}
-.tl-wave-canvas{height:350px}
-.tl-prob-canvas{height:300px}
+.wave-canvas{width:100%;height:600px;display:block;cursor:pointer}
+.tl-canvas{height:700px}
 .wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
   background:#3b82f6;box-shadow:0 0 6px rgba(59,130,246,.4);
   pointer-events:none;opacity:0;transition:opacity .15s}
@@ -579,259 +574,236 @@ function setupCanvas(canvas){
   return{ctx:ctx,w:rect.width,h:rect.height};
 }
 
-/* === Oscillogram waveform (min/max per pixel) — light theme === */
-function drawOscillogram(canvas,samples,opts){
-  opts=opts||{};
-  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h,mid=h/2;
-  var sr=opts.sampleRate||16000,dur=samples.length/sr;
-  var pad=30; /* bottom padding for time axis */
+/* ================================================================
+   UNIFIED CLIP FIGURE: waveform (top 60%) + probability (bottom 40%)
+   on ONE canvas, shared time axis — like a proper academic figure
+   ================================================================ */
+function drawClipFigure(canvas,samples,opts){
+  var c=setupCanvas(canvas),ctx=c.ctx,W=c.w,H=c.h;
+  var sr=opts.sampleRate||16000, dur=samples.length/sr;
+  var prob=opts.prob||0, hdm=opts.hdmRegion;
 
-  /* white background */
-  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
+  /* layout */
+  var L=50, R=16, Ttop=10, Tbot=32, gap=24;
+  var waveH=Math.floor((H-Ttop-Tbot-gap)*0.6);
+  var probH=H-Ttop-Tbot-gap-waveH;
+  var wY=Ttop, pY=Ttop+waveH+gap;
+  var plotW=W-L-R;
 
-  /* subtle grid lines */
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
-  for(var g=0.25;g<1;g+=0.25){
-    var gy=mid-g*(mid-pad/2)*.88, gy2=mid+g*(mid-pad/2)*.88;
-    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(0,gy2);ctx.lineTo(w,gy2);ctx.stroke();
+  /* white bg */
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+
+  /* === HDM shading (full height) === */
+  if(hdm){
+    var hx1=L+(hdm[0]/dur)*plotW, hx2=L+(hdm[1]/dur)*plotW;
+    ctx.fillStyle='rgba(239,68,68,.10)';ctx.fillRect(hx1,wY,hx2-hx1,waveH+gap+probH);
   }
 
-  /* HDM region shading */
-  if(opts.hdmRegion){
-    var x1=(opts.hdmRegion[0]/dur)*w, x2=(opts.hdmRegion[1]/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.12)';ctx.fillRect(x1,0,x2-x1,h-pad);
-    ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;
-    ctx.setLineDash([6,4]);ctx.beginPath();
-    ctx.moveTo(x1,0);ctx.lineTo(x1,h-pad);ctx.moveTo(x2,0);ctx.lineTo(x2,h-pad);
-    ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#dc2626';ctx.font='700 13px Inter,system-ui';
-    ctx.fillText('HDM Region',x1+6,18);
+  /* ─── TOP: WAVEFORM ─── */
+  var mid=wY+waveH/2;
+  /* grid */
+  ctx.strokeStyle='#f1f5f9';ctx.lineWidth=1;
+  for(var g=0.25;g<=0.75;g+=0.25){
+    var gy1=mid-g*(waveH/2)*.85, gy2=mid+g*(waveH/2)*.85;
+    ctx.beginPath();ctx.moveTo(L,gy1);ctx.lineTo(W-R,gy1);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(L,gy2);ctx.lineTo(W-R,gy2);ctx.stroke();
   }
-
   /* center line */
   ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(L,mid);ctx.lineTo(W-R,mid);ctx.stroke();
 
-  /* min/max per pixel column = classic oscillogram */
-  var spp=samples.length/w;
-  for(var px=0;px<Math.ceil(w);px++){
+  /* HDM boundary lines */
+  if(hdm){
+    var hx1=L+(hdm[0]/dur)*plotW, hx2=L+(hdm[1]/dur)*plotW;
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;
+    ctx.setLineDash([5,3]);ctx.beginPath();
+    ctx.moveTo(hx1,wY);ctx.lineTo(hx1,wY+waveH);
+    ctx.moveTo(hx2,wY);ctx.lineTo(hx2,wY+waveH);
+    ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#dc2626';ctx.font='bold 13px Inter,system-ui';
+    ctx.fillText('Ground Truth HDM',hx1+5,wY+16);
+  }
+
+  /* waveform (min/max per pixel) */
+  var spp=samples.length/plotW;
+  for(var px=0;px<Math.ceil(plotW);px++){
     var s=Math.floor(px*spp),e=Math.min(Math.ceil((px+1)*spp),samples.length);
     var mn=0,mx=0;
     for(var j=s;j<e;j++){if(samples[j]<mn)mn=samples[j];if(samples[j]>mx)mx=samples[j];}
-    var yTop=mid-mx*(mid-pad/2)*.88, yBot=mid-mn*(mid-pad/2)*.88;
+    var yTop=mid-mx*(waveH/2)*.85, yBot=mid-mn*(waveH/2)*.85;
     var bH=Math.max(1,yBot-yTop);
-    var color=opts.color||'#3b82f6';
-    if(opts.hdmRegion){var t=(px/w)*dur;if(t>=opts.hdmRegion[0]&&t<=opts.hdmRegion[1])color='#ef4444';}
-    ctx.fillStyle=color;
-    ctx.fillRect(px,yTop,1,bH);
-  }
-
-  /* time axis */
-  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,h-pad,w,1);
-  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
-  var tStep=dur>10?10:1;
-  for(var t=0;t<=dur;t+=tStep){
-    var x=(t/dur)*w;
-    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,h-pad,1,6);
-    ctx.fillStyle='#64748b';
-    if(dur>10){var m=Math.floor(t/60),sc=Math.floor(t%60);ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);}
-    else ctx.fillText(t+'s',x+3,h-6);
+    var t=(px/plotW)*dur;
+    ctx.fillStyle=(hdm&&t>=hdm[0]&&t<=hdm[1])?'#ef4444':'#3b82f6';
+    ctx.fillRect(L+px,yTop,1,bH);
   }
   /* y-axis label */
-  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('Amplitude',8,16);
-}
+  ctx.save();ctx.translate(14,mid);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';ctx.textAlign='center';
+  ctx.fillText('Amplitude',0,0);ctx.restore();
+  /* border */
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;ctx.strokeRect(L,wY,plotW,waveH);
 
-/* === Probability area chart for clips — matches timeline style === */
-function drawProbArea(canvas,prob,dur,hdmRegion){
-  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
-  var pad={top:22,bottom:30,left:40};
-  var plotH=h-pad.top-pad.bottom;
-  var plotW=w-pad.left;
-
-  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
-
-  /* horizontal grid + y-axis labels */
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
-  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';
+  /* ─── BOTTOM: PROBABILITY ─── */
+  /* grid */
+  ctx.strokeStyle='#f1f5f9';ctx.lineWidth=1;
   for(var g=0;g<=1;g+=0.25){
-    var gy=pad.top+plotH*(1-g);
-    ctx.beginPath();ctx.moveTo(pad.left,gy);ctx.lineTo(w,gy);ctx.stroke();
-    ctx.textAlign='right';
-    ctx.fillText(g.toFixed(2),pad.left-6,gy+4);
+    var gy=pY+probH*(1-g);
+    ctx.beginPath();ctx.moveTo(L,gy);ctx.lineTo(W-R,gy);ctx.stroke();
+  }
+  /* y-axis labels */
+  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';ctx.textAlign='right';
+  for(var g=0;g<=1;g+=0.25){
+    ctx.fillText(g.toFixed(2),L-6,pY+probH*(1-g)+4);
   }
   ctx.textAlign='left';
 
-  /* HDM region shading */
-  if(hdmRegion){
-    var x1=pad.left+(hdmRegion[0]/dur)*plotW;
-    var x2=pad.left+(hdmRegion[1]/dur)*plotW;
-    ctx.fillStyle='rgba(239,68,68,.12)';
-    ctx.fillRect(x1,pad.top,x2-x1,plotH);
-    ctx.fillStyle='#ef4444';ctx.fillRect(x1,pad.top,x2-x1,3);
-    ctx.fillStyle='#dc2626';ctx.font='700 12px Inter,system-ui';
-    ctx.fillText('HDM',x1+4,pad.top+16);
+  /* HDM shading in prob area */
+  if(hdm){
+    var hx1=L+(hdm[0]/dur)*plotW, hx2=L+(hdm[1]/dur)*plotW;
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;ctx.setLineDash([5,3]);
+    ctx.beginPath();ctx.moveTo(hx1,pY);ctx.lineTo(hx1,pY+probH);
+    ctx.moveTo(hx2,pY);ctx.lineTo(hx2,pY+probH);
+    ctx.stroke();ctx.setLineDash([]);
   }
 
-  /* threshold line at 0.5 */
-  var thY=pad.top+plotH*0.5;
-  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
-  ctx.setLineDash([6,4]);ctx.beginPath();
-  ctx.moveTo(pad.left,thY);ctx.lineTo(w,thY);ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('Threshold',w-60,thY-6);
+  /* threshold at 0.5 */
+  var thY=pY+probH*0.5;
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(L,thY);ctx.lineTo(W-R,thY);ctx.stroke();ctx.setLineDash([]);
 
-  /* filled probability area */
-  var probY=pad.top+plotH*(1-prob);
-  var color=prob>0.5?'rgba(239,68,68,.15)':'rgba(34,197,94,.15)';
-  ctx.fillStyle=color;
-  ctx.fillRect(pad.left,probY,plotW,pad.top+plotH-probY);
+  /* prob filled area */
+  var probYval=pY+probH*(1-prob);
+  ctx.fillStyle=prob>0.5?'rgba(239,68,68,.12)':'rgba(34,197,94,.12)';
+  ctx.fillRect(L,probYval,plotW,pY+probH-probYval);
+  /* prob line */
+  ctx.strokeStyle=prob>0.5?'#dc2626':'#16a34a';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(L,probYval);ctx.lineTo(W-R,probYval);ctx.stroke();
+  /* prob label */
+  ctx.fillStyle=prob>0.5?'#dc2626':'#16a34a';ctx.font='bold 15px Inter,system-ui';
+  ctx.fillText('P(HDM) = '+prob.toFixed(2),L+8,probYval-8);
+  /* y-axis label */
+  ctx.save();ctx.translate(14,pY+probH/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';ctx.textAlign='center';
+  ctx.fillText('P(HDM)',0,0);ctx.restore();
+  /* border */
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;ctx.strokeRect(L,pY,plotW,probH);
 
-  /* probability line */
-  ctx.strokeStyle=prob>0.5?'#ef4444':'#16a34a';ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(pad.left,probY);ctx.lineTo(w,probY);ctx.stroke();
-
-  /* probability value label */
-  ctx.fillStyle=prob>0.5?'#dc2626':'#16a34a';
-  ctx.font='700 16px Inter,system-ui';
-  ctx.fillText('P(HDM) = '+prob.toFixed(2),pad.left+12,probY-10);
-
-  /* time axis */
-  ctx.fillStyle='#e2e8f0';ctx.fillRect(pad.left,pad.top+plotH,plotW,1);
+  /* === SHARED TIME AXIS === */
   ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
+  ctx.textAlign='center';
   for(var t=0;t<=dur;t+=1){
-    var x=pad.left+(t/dur)*plotW;
-    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pad.top+plotH,1,6);
-    ctx.fillStyle='#64748b';ctx.fillText(t+'s',x+3,h-6);
+    var x=L+(t/dur)*plotW;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pY+probH,1,6);
+    ctx.fillStyle='#64748b';ctx.fillText(t+'s',x,pY+probH+20);
   }
-
-  /* y-axis title */
-  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('P(HDM)',pad.left+4,pad.top+10);
+  ctx.fillText('Time (seconds)',L+plotW/2,H-4);
 }
 
-/* === Probability trace over time (Figure 1 style) — light theme === */
-function drawProbTrace(canvas,data){
-  if(!data||!data.probs||!data.probs.length)return;
-  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
-  var dur=data.endSec-data.startSec,probs=data.probs,hdms=data.hdms;
-  var pad={top:22,bottom:30};
-  var plotH=h-pad.top-pad.bottom;
-
-  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
-
-  /* horizontal grid */
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
-  for(var g=0;g<=1;g+=0.25){
-    var gy=pad.top+plotH*(1-g);
-    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
-  }
-
-  /* HDM red shaded regions */
-  for(var k=0;k<hdms.length;k++){
-    var x1=((hdms[k].start-data.startSec)/dur)*w;
-    var x2=((hdms[k].end-data.startSec)/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.15)';
-    ctx.fillRect(x1,pad.top,Math.max(x2-x1,6),plotH);
-    /* red top border */
-    ctx.fillStyle='#ef4444';ctx.fillRect(x1,pad.top,Math.max(x2-x1,6),3);
-  }
-
-  /* threshold line at 0.5 */
-  var thY=pad.top+plotH*0.5;
-  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
-  ctx.setLineDash([6,4]);ctx.beginPath();
-  ctx.moveTo(0,thY);ctx.lineTo(w,thY);ctx.stroke();ctx.setLineDash([]);
-
-  /* probability trace — filled area */
-  ctx.beginPath();
-  ctx.moveTo(0,pad.top+plotH);
-  for(var i=0;i<probs.length;i++){
-    var x=(i/(probs.length-1))*w;
-    var y=pad.top+plotH*(1-probs[i]);
-    ctx.lineTo(x,y);
-  }
-  ctx.lineTo(w,pad.top+plotH);ctx.closePath();
-  ctx.fillStyle='rgba(34,197,94,.12)';ctx.fill();
-
-  /* probability trace line */
-  ctx.beginPath();
-  ctx.strokeStyle='#16a34a';ctx.lineWidth=2.5;
-  for(var i=0;i<probs.length;i++){
-    var x=(i/(probs.length-1))*w;
-    var y=pad.top+plotH*(1-probs[i]);
-    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-
-  /* Y-axis labels */
-  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('1.0',6,pad.top+8);
-  ctx.fillText('0.5',6,thY-4);
-  ctx.fillText('0.0',6,pad.top+plotH-4);
-
-  /* label */
-  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.textAlign='right';ctx.fillText('P(HDM)',w-8,pad.top+8);ctx.textAlign='left';
-
-  /* time axis */
-  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,pad.top+plotH,w,1);
-  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
-  for(var t=0;t<=dur;t+=10){
-    var x=(t/dur)*w;
-    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pad.top+plotH,1,6);
-    ctx.fillStyle='#64748b';
-    var m=Math.floor((data.startSec+t)/60),sc=Math.floor((data.startSec+t)%60);
-    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);
-  }
-}
-
-/* === Meeting Timeline waveform (envelope) — light theme === */
-function drawTimelineWave(canvas,data){
+/* ================================================================
+   UNIFIED TIMELINE FIGURE (Figure 1 style): one canvas
+   Top: waveform envelope. Bottom: probability trace with HDM regions.
+   ================================================================ */
+function drawTimelineFigure(canvas,data){
   if(!data)return;
-  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
-  var env=data.envelope,hdms=data.hdms,s0=data.startSec,s1=data.endSec,dur=s1-s0;
-  var pad=30;
-  var mid=(h-pad)/2,bw=Math.max(1,w/env.length);
+  var c=setupCanvas(canvas),ctx=c.ctx,W=c.w,H=c.h;
+  var env=data.envelope,hdms=data.hdms,probs=data.probs||[];
+  var s0=data.startSec,s1=data.endSec,dur=s1-s0;
 
-  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
+  var L=50, R=16, Ttop=10, Tbot=32, gap=24;
+  var waveH=Math.floor((H-Ttop-Tbot-gap)*0.45);
+  var probH=H-Ttop-Tbot-gap-waveH;
+  var wY=Ttop, pY=Ttop+waveH+gap;
+  var plotW=W-L-R;
 
-  /* HDM region shading */
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+
+  /* === HDM shading (full height) === */
   for(var k=0;k<hdms.length;k++){
-    var x1=((hdms[k].start-s0)/dur)*w, x2=((hdms[k].end-s0)/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.12)';ctx.fillRect(x1,0,Math.max(x2-x1,6),h-pad);
-    ctx.fillStyle='#ef4444';ctx.fillRect(x1,0,Math.max(x2-x1,6),3);
+    var hx1=L+((hdms[k].start-s0)/dur)*plotW;
+    var hx2=L+((hdms[k].end-s0)/dur)*plotW;
+    var hw=Math.max(hx2-hx1,4);
+    ctx.fillStyle='rgba(239,68,68,.10)';ctx.fillRect(hx1,wY,hw,waveH+gap+probH);
   }
 
-  /* center line */
+  /* ─── TOP: WAVEFORM ENVELOPE ─── */
+  var mid=wY+waveH/2;
   ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(L,mid);ctx.lineTo(W-R,mid);ctx.stroke();
 
-  /* envelope bars */
+  var bw=Math.max(1,plotW/env.length);
   for(var i=0;i<env.length;i++){
-    var x=(i/env.length)*w,amp=env[i]*mid*.88;
+    var x=L+(i/env.length)*plotW, amp=env[i]*(waveH/2)*.88;
     var t=s0+(i/env.length)*dur,inH=false;
     for(var k=0;k<hdms.length;k++){if(t>=hdms[k].start&&t<=hdms[k].end){inH=true;break;}}
     ctx.fillStyle=inH?'#ef4444':'#3b82f6';
-    ctx.globalAlpha=inH?0.8:0.5;
+    ctx.globalAlpha=inH?0.85:0.5;
     ctx.fillRect(x,mid-amp,Math.max(1,bw),amp*2||1);
   }
   ctx.globalAlpha=1;
+  ctx.save();ctx.translate(14,mid);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';ctx.textAlign='center';
+  ctx.fillText('Amplitude',0,0);ctx.restore();
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;ctx.strokeRect(L,wY,plotW,waveH);
 
-  /* time axis */
-  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,h-pad,w,1);
-  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
+  /* ─── BOTTOM: PROBABILITY TRACE (Figure 1) ─── */
+  /* grid */
+  ctx.strokeStyle='#f1f5f9';ctx.lineWidth=1;
+  for(var g=0;g<=1;g+=0.25){
+    var gy=pY+probH*(1-g);
+    ctx.beginPath();ctx.moveTo(L,gy);ctx.lineTo(W-R,gy);ctx.stroke();
+  }
+  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';ctx.textAlign='right';
+  for(var g=0;g<=1;g+=0.5){ctx.fillText(g.toFixed(1),L-6,pY+probH*(1-g)+4);}
+  ctx.textAlign='left';
+
+  /* HDM shading in prob area */
+  for(var k=0;k<hdms.length;k++){
+    var hx1=L+((hdms[k].start-s0)/dur)*plotW;
+    var hx2=L+((hdms[k].end-s0)/dur)*plotW;
+    ctx.fillStyle='rgba(239,68,68,.15)';
+    ctx.fillRect(hx1,pY,Math.max(hx2-hx1,4),probH);
+  }
+
+  /* threshold at 0.5 */
+  var thY=pY+probH*0.5;
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(L,thY);ctx.lineTo(W-R,thY);ctx.stroke();ctx.setLineDash([]);
+
+  if(probs.length){
+    /* filled area under trace */
+    ctx.beginPath();ctx.moveTo(L,pY+probH);
+    for(var i=0;i<probs.length;i++){
+      var x=L+(i/(probs.length-1))*plotW;
+      var y=pY+probH*(1-probs[i]);ctx.lineTo(x,y);
+    }
+    ctx.lineTo(W-R,pY+probH);ctx.closePath();
+    ctx.fillStyle='rgba(34,197,94,.10)';ctx.fill();
+
+    /* trace line */
+    ctx.beginPath();ctx.strokeStyle='#16a34a';ctx.lineWidth=2.5;
+    for(var i=0;i<probs.length;i++){
+      var x=L+(i/(probs.length-1))*plotW;
+      var y=pY+probH*(1-probs[i]);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  ctx.save();ctx.translate(14,pY+probH/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';ctx.textAlign='center';
+  ctx.fillText('P(HDM)',0,0);ctx.restore();
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;ctx.strokeRect(L,pY,plotW,probH);
+
+  /* === SHARED TIME AXIS === */
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';ctx.textAlign='center';
   for(var t=0;t<=dur;t+=10){
-    var x=(t/dur)*w;
-    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,h-pad,1,6);
+    var x=L+(t/dur)*plotW;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pY+probH,1,6);
     ctx.fillStyle='#64748b';
     var m=Math.floor((s0+t)/60),sc=Math.floor((s0+t)%60);
-    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);
+    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x,pY+probH+20);
   }
-  /* label */
-  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('Amplitude',8,16);
+  ctx.fillText('Time',L+plotW/2,H-4);
 }
 
 /* === Tab switching === */
@@ -860,13 +832,10 @@ function initPlayers(){
     var audio=document.getElementById(aid),cursor=document.getElementById(cid);
     var playIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
     var pauseIcon='<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-
     btn.addEventListener('click',function(){
       if(audio.paused){
         document.querySelectorAll('audio').forEach(function(a){a.pause()});
-        document.querySelectorAll('.play-btn').forEach(function(b){
-          b.classList.remove('playing');b.innerHTML=playIcon;
-        });
+        document.querySelectorAll('.play-btn').forEach(function(b){b.classList.remove('playing');b.innerHTML=playIcon;});
         document.querySelectorAll('.wave-cursor').forEach(function(c){c.classList.remove('active')});
         audio.play();btn.classList.add('playing');btn.innerHTML=pauseIcon;
         if(cursor)cursor.classList.add('active');
@@ -883,12 +852,10 @@ function initPlayers(){
       if(cursor&&audio.duration) cursor.style.left=(audio.currentTime/audio.duration*100)+'%';
     });
   });
-  /* click waveform to seek */
   document.querySelectorAll('.wave-panel .wave-canvas').forEach(function(cv){
     cv.addEventListener('click',function(e){
       var panel=cv.closest('.wave-panel');if(!panel)return;
-      var audio=panel.querySelector('audio');
-      if(!audio||!audio.duration)return;
+      var audio=panel.querySelector('audio');if(!audio||!audio.duration)return;
       var r=cv.getBoundingClientRect();
       audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;
       if(audio.paused){var b=panel.querySelector('.play-btn');if(b)b.click();}
@@ -896,44 +863,35 @@ function initPlayers(){
   });
 }
 
-/* === Smooth nav highlighting === */
 function initNav(){
-  var links=document.querySelectorAll('.nav a');
-  var sections=[];
-  links.forEach(function(a){
-    var id=a.getAttribute('href');
+  var links=document.querySelectorAll('.nav a'),sections=[];
+  links.forEach(function(a){var id=a.getAttribute('href');
     if(id&&id.startsWith('#')){var el=document.querySelector(id);if(el)sections.push({el:el,a:a});}
   });
-  function onScroll(){
-    var y=window.scrollY+80,active=sections[0];
+  function onScroll(){var y=window.scrollY+80,active=sections[0];
     sections.forEach(function(s){if(s.el.offsetTop<=y)active=s;});
-    links.forEach(function(a){a.style.color=''});
-    if(active)active.a.style.color='#3b82f6';
+    links.forEach(function(a){a.style.color=''});if(active)active.a.style.color='#3b82f6';
   }
   window.addEventListener('scroll',onScroll,{passive:true});onScroll();
 }
 
-/* === Draw a clip panel (waveform + probability area) === */
+/* === Draw clip panel === */
 function drawClipPanel(which){
   var cfg={
-    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#3b82f6',hdm:[3.0,4.0],prob:0.90,waveId:'wave-pos',probId:'prob-pos'},
-    neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#3b82f6',hdm:null,prob:0.10,waveId:'wave-neg',probId:'prob-neg'}
+    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',hdm:[3.0,4.0],prob:0.90,id:'wave-pos'},
+    neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',hdm:null,prob:0.10,id:'wave-neg'}
   }[which];
   if(!cfg||!cfg.b64)return;
   var wav=decodeWav(cfg.b64);if(!wav)return;
-  var wCv=document.getElementById(cfg.waveId);
-  var pCv=document.getElementById(cfg.probId);
-  if(wCv) drawOscillogram(wCv,wav.samples,{sampleRate:wav.sampleRate,color:cfg.color,hdmRegion:cfg.hdm});
-  if(pCv) drawProbArea(pCv,cfg.prob,wav.duration,cfg.hdm);
+  var cv=document.getElementById(cfg.id);
+  if(cv) drawClipFigure(cv,wav.samples,{sampleRate:wav.sampleRate,hdmRegion:cfg.hdm,prob:cfg.prob});
 }
 
-/* === Draw the meeting timeline panel === */
+/* === Draw timeline panel === */
 function drawTimelinePanel(){
   if(typeof TIMELINE_DATA==='undefined'||!TIMELINE_DATA)return;
-  var wCv=document.getElementById('wave-timeline');
-  var pCv=document.getElementById('prob-timeline');
-  if(wCv) drawTimelineWave(wCv,TIMELINE_DATA);
-  if(pCv) drawProbTrace(pCv,TIMELINE_DATA);
+  var cv=document.getElementById('wave-timeline');
+  if(cv) drawTimelineFigure(cv,TIMELINE_DATA);
 }
 
 /* === Init === */
@@ -943,8 +901,7 @@ function init(){
   var timer;
   window.addEventListener('resize',function(){
     clearTimeout(timer);timer=setTimeout(function(){
-      var active=document.querySelector('.wave-panel.active');
-      if(!active)return;
+      var active=document.querySelector('.wave-panel.active');if(!active)return;
       var idx=active.getAttribute('data-panel');
       if(idx==='2') drawTimelinePanel();
       else if(idx==='1') drawClipPanel('neg');
@@ -1050,12 +1007,9 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
 
     <!-- Panel 0: Positive HDM -->
     <div class="wave-panel active" data-panel="0">
-      <div class="dual-viz">
-        <div class="wave-wrap">
-          <canvas id="wave-pos" class="wave-canvas"></canvas>
-          <div class="wave-cursor" id="cursor-pos"></div>
-        </div>
-        <canvas id="prob-pos" class="prob-canvas"></canvas>
+      <div class="wave-wrap">
+        <canvas id="wave-pos" class="wave-canvas"></canvas>
+        <div class="wave-cursor" id="cursor-pos"></div>
       </div>
       <audio id="audio-pos" preload="auto">
         <source src="data:audio/wav;base64,{pos_b64}" type="audio/wav">
@@ -1078,12 +1032,9 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
 
     <!-- Panel 1: Negative -->
     <div class="wave-panel" data-panel="1">
-      <div class="dual-viz">
-        <div class="wave-wrap">
-          <canvas id="wave-neg" class="wave-canvas"></canvas>
-          <div class="wave-cursor" id="cursor-neg"></div>
-        </div>
-        <canvas id="prob-neg" class="prob-canvas"></canvas>
+      <div class="wave-wrap">
+        <canvas id="wave-neg" class="wave-canvas"></canvas>
+        <div class="wave-cursor" id="cursor-neg"></div>
       </div>
       <audio id="audio-neg" preload="auto">
         <source src="data:audio/wav;base64,{neg_b64}" type="audio/wav">
@@ -1106,9 +1057,8 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
 
     <!-- Panel 2: Meeting Timeline (Figure 1 style) -->
     <div class="wave-panel" data-panel="2">
-      <div class="dual-viz">
-        <canvas id="wave-timeline" class="wave-canvas tl-wave-canvas"></canvas>
-        <canvas id="prob-timeline" class="prob-canvas tl-prob-canvas"></canvas>
+      <div class="wave-wrap">
+        <canvas id="wave-timeline" class="wave-canvas tl-canvas"></canvas>
       </div>
       <div class="timeline-legend">
         <span class="tl-item"><span class="tl-dot hdm"></span> Ground truth HDM</span>
