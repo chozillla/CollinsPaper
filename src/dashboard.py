@@ -646,46 +646,72 @@ function drawOscillogram(canvas,samples,opts){
   ctx.fillText('Amplitude',8,16);
 }
 
-/* === Probability bar for single-value clips — light theme === */
-function drawProbBar(canvas,prob,isHDM){
+/* === Probability area chart for clips — matches timeline style === */
+function drawProbArea(canvas,prob,dur,hdmRegion){
   var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
+  var pad={top:22,bottom:30,left:40};
+  var plotH=h-pad.top-pad.bottom;
+  var plotW=w-pad.left;
+
   ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
 
-  /* threshold line at 0.5 */
-  var thX=0.5*w;
-  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
-  ctx.setLineDash([6,4]);ctx.beginPath();
-  ctx.moveTo(thX,0);ctx.lineTo(thX,h);ctx.stroke();ctx.setLineDash([]);
-
-  /* bar background */
-  var barY=h*0.22,barH=h*0.36;
-  ctx.fillStyle='#f1f5f9';ctx.fillRect(0,barY,w,barH);
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;ctx.strokeRect(0,barY,w,barH);
-
-  /* filled bar */
-  var probW=prob*w;
-  var grad=ctx.createLinearGradient(0,0,probW,0);
-  if(prob>0.5){grad.addColorStop(0,'#f59e0b');grad.addColorStop(1,'#ef4444');}
-  else{grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#16a34a');}
-  ctx.fillStyle=grad;ctx.fillRect(0,barY,probW,barH);
-
-  /* threshold label */
-  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
-  ctx.textAlign='center';ctx.fillText('Threshold = 0.5',thX,barY-8);
-
-  /* probability value */
-  ctx.fillStyle='#1e293b';ctx.font='700 18px Inter,system-ui';
-  ctx.fillText('P(HDM) = '+prob.toFixed(2),w/2,barY+barH+28);
-
-  /* scale */
-  ctx.fillStyle='#94a3b8';ctx.font='600 12px Inter,system-ui';
-  ctx.textAlign='left';ctx.fillText('0.0',6,h-8);
-  ctx.textAlign='right';ctx.fillText('1.0',w-6,h-8);
+  /* horizontal grid + y-axis labels */
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';
+  for(var g=0;g<=1;g+=0.25){
+    var gy=pad.top+plotH*(1-g);
+    ctx.beginPath();ctx.moveTo(pad.left,gy);ctx.lineTo(w,gy);ctx.stroke();
+    ctx.textAlign='right';
+    ctx.fillText(g.toFixed(2),pad.left-6,gy+4);
+  }
   ctx.textAlign='left';
 
-  /* label */
+  /* HDM region shading */
+  if(hdmRegion){
+    var x1=pad.left+(hdmRegion[0]/dur)*plotW;
+    var x2=pad.left+(hdmRegion[1]/dur)*plotW;
+    ctx.fillStyle='rgba(239,68,68,.12)';
+    ctx.fillRect(x1,pad.top,x2-x1,plotH);
+    ctx.fillStyle='#ef4444';ctx.fillRect(x1,pad.top,x2-x1,3);
+    ctx.fillStyle='#dc2626';ctx.font='700 12px Inter,system-ui';
+    ctx.fillText('HDM',x1+4,pad.top+16);
+  }
+
+  /* threshold line at 0.5 */
+  var thY=pad.top+plotH*0.5;
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);ctx.beginPath();
+  ctx.moveTo(pad.left,thY);ctx.lineTo(w,thY);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
-  ctx.fillText('Model Output',8,16);
+  ctx.fillText('Threshold',w-60,thY-6);
+
+  /* filled probability area */
+  var probY=pad.top+plotH*(1-prob);
+  var color=prob>0.5?'rgba(239,68,68,.15)':'rgba(34,197,94,.15)';
+  ctx.fillStyle=color;
+  ctx.fillRect(pad.left,probY,plotW,pad.top+plotH-probY);
+
+  /* probability line */
+  ctx.strokeStyle=prob>0.5?'#ef4444':'#16a34a';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(pad.left,probY);ctx.lineTo(w,probY);ctx.stroke();
+
+  /* probability value label */
+  ctx.fillStyle=prob>0.5?'#dc2626':'#16a34a';
+  ctx.font='700 16px Inter,system-ui';
+  ctx.fillText('P(HDM) = '+prob.toFixed(2),pad.left+12,probY-10);
+
+  /* time axis */
+  ctx.fillStyle='#e2e8f0';ctx.fillRect(pad.left,pad.top+plotH,plotW,1);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
+  for(var t=0;t<=dur;t+=1){
+    var x=pad.left+(t/dur)*plotW;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pad.top+plotH,1,6);
+    ctx.fillStyle='#64748b';ctx.fillText(t+'s',x+3,h-6);
+  }
+
+  /* y-axis title */
+  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
+  ctx.fillText('P(HDM)',pad.left+4,pad.top+10);
 }
 
 /* === Probability trace over time (Figure 1 style) — light theme === */
@@ -890,18 +916,18 @@ function initNav(){
   window.addEventListener('scroll',onScroll,{passive:true});onScroll();
 }
 
-/* === Draw a clip panel (waveform + prob bar) === */
+/* === Draw a clip panel (waveform + probability area) === */
 function drawClipPanel(which){
   var cfg={
-    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#06b6d4',hdm:[3.0,4.0],prob:0.90,waveId:'wave-pos',probId:'prob-pos'},
-    neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#22c55e',hdm:null,prob:0.10,waveId:'wave-neg',probId:'prob-neg'}
+    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#3b82f6',hdm:[3.0,4.0],prob:0.90,waveId:'wave-pos',probId:'prob-pos'},
+    neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#3b82f6',hdm:null,prob:0.10,waveId:'wave-neg',probId:'prob-neg'}
   }[which];
   if(!cfg||!cfg.b64)return;
   var wav=decodeWav(cfg.b64);if(!wav)return;
   var wCv=document.getElementById(cfg.waveId);
   var pCv=document.getElementById(cfg.probId);
   if(wCv) drawOscillogram(wCv,wav.samples,{sampleRate:wav.sampleRate,color:cfg.color,hdmRegion:cfg.hdm});
-  if(pCv) drawProbBar(pCv,cfg.prob,cfg.prob>0.5);
+  if(pCv) drawProbArea(pCv,cfg.prob,wav.duration,cfg.hdm);
 }
 
 /* === Draw the meeting timeline panel === */
