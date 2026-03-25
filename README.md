@@ -2,31 +2,143 @@
 
 Replication of [Collins et al. (2025)](https://arxiv.org/abs/2507.23590) using the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) and Gemini 3.1 Pro.
 
-The original paper detects **Hearing Difficulty Moments (HDMs)** — instances where a listener struggles to comprehend dialogue (e.g., "What?", "Huh?", "Sorry?") — using multimodal audio language models. Their best approach (Gemini 1.5 Pro, 10-shot prompting) achieved **F1 = 0.87** on the SWDA/MRDA datasets.
+**[Interactive Dashboard](https://chozillla.github.io/CollinsPaper/)** — explore all trial results with hover, zoom, and pan.
 
-We replicate the 10-shot audio LLM prompting method on a different dataset (AMI Meeting Corpus) with a newer model (Gemini 3.1 Pro).
+---
+
+## What is This Project About?
+
+Imagine you're in a meeting and someone says something, but another person doesn't hear them clearly. They might respond with "What?", "Huh?", "Sorry?", or "Can you repeat that?". These are **Hearing Difficulty Moments (HDMs)** — moments when a listener struggles to understand what was said.
+
+Collins et al. (2025) showed that AI models can automatically detect these moments from audio recordings. Their best model (Google's Gemini 1.5 Pro) achieved an **F1 score of 0.87** — meaning it correctly identified most hearing difficulty moments while making relatively few mistakes.
+
+**This project replicates their experiment** using a different dataset (AMI Meeting Corpus — recordings of group meetings) and a newer AI model (Gemini 3.1 Pro). We test four different detection methods to see how well each one works, ranging from simple random guessing to a sophisticated AI model that listens to the actual audio.
+
+### What is an F1 Score?
+
+F1 is the main metric used to evaluate each method. It balances two concerns:
+
+- **Precision**: Of all the moments the model flagged as HDMs, how many actually were? (Avoiding false alarms)
+- **Recall**: Of all the real HDMs in the data, how many did the model catch? (Not missing any)
+
+F1 ranges from 0 (worst) to 1 (perfect). An F1 of 0.58 means the model does a reasonable job at both catching real HDMs and avoiding false alarms, though there's room for improvement.
 
 ---
 
 ## Results
 
-| Method | Avg F1 (5-fold MCCV) |
-|---|:---:|
-| Random guessing (50/50) | 0.15 |
-| Random guessing (base-rate) | 0.09 |
-| ASR Hotword Heuristic (Whisper) | 0.23 |
-| **Gemini 3.1 Pro (10-shot audio)** | **0.58** |
-| *Collins et al. Gemini 1.5 Pro (10-shot)* | *0.87* |
+| Method | What it Does | Avg F1 | Std |
+|---|---|:---:|:---:|
+| Random guessing (50/50) | Flips a coin for each segment | 0.15 | 0.03 |
+| Random guessing (base-rate) | Guesses "HDM" 9.1% of the time | 0.09 | 0.06 |
+| ASR Hotword Heuristic (Whisper) | Transcribes audio, looks for keywords | 0.23 | 0.11 |
+| **Gemini 3.1 Pro (10-shot audio)** | **AI listens to audio and decides** | **0.58** | **0.09** |
+| *Collins et al. Gemini 1.5 Pro (10-shot)* | *Same approach, different data/model* | *0.87* | — |
 
 The 10-shot Gemini classifier is **3.8x better than random guessing** and **2.5x better than the hotword baseline**, confirming that audio language models can detect hearing difficulty moments from conversational audio.
 
-**[Interactive Dashboard](https://chozillla.github.io/CollinsPaper/)** — explore all trial results with hover, zoom, and pan.
+### How to Read the Results
 
-### Why Random Guessing is So Low
+The methods are listed from simplest (random guessing) to most sophisticated (Gemini AI). Each method was tested 5 times on different random subsets of the data (**5-fold Monte Carlo Cross-Validation**) to ensure the results are reliable and not just a lucky split. The "Std" column shows how much the F1 varied across those 5 runs — lower means more consistent.
 
-The dataset is highly imbalanced — only **9.1%** of segments are positive (105 out of 1,155). A random classifier that guesses 50/50 will predict positive for ~half the segments, but only ~9% are actually positive, resulting in very low precision and an F1 of just 0.15. A base-rate-matched random classifier (guessing positive 9% of the time) does even worse at F1 = 0.09 because it rarely predicts positive at all, achieving almost no recall. This establishes a clear floor that any meaningful classifier must exceed.
+---
 
-### Why Our F1 (0.58) Differs from the Paper (0.87)
+## Methods Explained
+
+We tested four methods of increasing sophistication. Think of them as a ladder: the random baselines set the floor (how well can you do with no information?), the hotword approach adds basic speech understanding, and Gemini brings full audio comprehension.
+
+### Method 1: Random 50/50 Baseline
+
+**The idea**: For every audio segment, flip a coin. Heads = "this is an HDM", tails = "this is not".
+
+**How it works**: A random number generator decides each prediction with 50% probability of predicting positive (HDM) or negative (not HDM). This completely ignores the audio — the model never listens to anything. We ran this 100 times with different random seeds for each of the 5 CV splits and averaged the results.
+
+**Why it exists**: This is the absolute floor. Any useful detection method must beat random guessing. If a model can't do better than a coin flip, it hasn't learned anything meaningful.
+
+**Why the F1 is so low (0.15)**: Our dataset is heavily imbalanced — only **9.1%** of segments contain actual HDMs (105 out of 1,155). When the model randomly guesses "HDM" for 50% of segments, most of those predictions are wrong (false positives), dragging precision down to around 0.09. Even though it catches about half the real HDMs (decent recall), the terrible precision results in an F1 of just 0.15.
+
+**Result: F1 = 0.15 ± 0.03**
+
+### Method 2: Random Base-rate Baseline
+
+**The idea**: Instead of a 50/50 coin flip, use a weighted coin that matches the actual HDM rate in the data (9.1%).
+
+**How it works**: Same as the 50/50 baseline, but the random number generator only predicts "HDM" 9.1% of the time — matching the true proportion of HDMs in the dataset. The intuition is: if you know HDMs are rare, maybe you should predict them rarely too. Again, 100 random seeds per CV split.
+
+**Why it exists**: Tests whether just knowing "HDMs are rare" is useful information. It's a slightly more informed version of random guessing.
+
+**Why the F1 is even lower (0.09)**: Because it predicts positive so rarely (~9% of the time), it barely catches any real HDMs. On a typical test set with ~20 real HDMs, it might flag only 1-2 segments as positive, and even those are usually wrong. The near-zero recall kills the F1 score.
+
+**Result: F1 = 0.09 ± 0.06**
+
+### Method 3: ASR Hotword Heuristic (Whisper)
+
+**The idea**: Convert audio to text using speech recognition, then check if the text contains words that people typically say when they can't hear (like "What?", "Huh?", "Sorry?").
+
+**How it works**:
+1. Each 4-second audio segment is fed into **OpenAI's Whisper** (a speech-to-text model) to produce a transcript
+2. The transcript is scanned for **hotword** keywords and phrases:
+   - Single words: "huh", "what", "pardon", "sorry", "excuse me"
+   - Phrases: "say that again", "repeat that", "didn't catch", "can't hear", "come again"
+3. If any hotword is found in the transcript, the segment is classified as an HDM
+
+**Why it exists**: This replicates the simplest baseline from the original paper. It represents what you could build with off-the-shelf speech recognition and a simple keyword list — no AI reasoning required.
+
+**Strengths**: Simple, interpretable, and fast. When it works, you know exactly why (a specific keyword was detected).
+
+**Weaknesses**: It depends entirely on accurate speech-to-text transcription. In AMI meeting recordings, multiple people often talk at the same time, creating overlapping speech and background noise that confuses Whisper. If Whisper can't hear the "What?" clearly enough to transcribe it, the hotword approach misses it entirely. It also ignores all acoustic cues — tone of voice, confusion in someone's voice, pauses — that a human listener would use.
+
+**Why our F1 (0.23) is lower than the paper's (0.39)**: The paper used telephone conversations (SWDA) with clean two-person audio. We use AMI meeting recordings with 4 speakers mixed into one audio channel. The overlapping speech and room noise degrade Whisper's transcription quality significantly.
+
+**Result: F1 = 0.23 ± 0.11**
+
+### Method 4: Gemini 3.1 Pro (10-Shot Audio Classification)
+
+**The idea**: Give a powerful AI model (Google's Gemini 3.1 Pro) the raw audio and ask it to listen and decide whether someone is having difficulty hearing. Show it 10 labelled examples first so it knows what to look for.
+
+**How it works**:
+1. The model receives a detailed **prompt** explaining what hearing difficulty sounds like, covering both:
+   - **Acoustic cues**: strained tone, increased pitch, louder voice, longer vowels (the [Lombard effect](https://en.wikipedia.org/wiki/Lombard_effect) — how people naturally change their voice when struggling to hear)
+   - **Semantic cues**: keywords like "What?", "Can you repeat that?", "Huh?"
+2. Before classifying each test segment, the model is shown **10 example audio clips** (5 positive HDMs + 5 negative) with correct labels — this is called **10-shot prompting** (or few-shot learning). The model learns the pattern from these examples.
+3. The model then listens to the target 4-second audio clip and outputs either **"P"** (positive — hearing difficulty detected) or **"N"** (negative — no hearing difficulty)
+
+**Few-shot format** (what the model sees):
+```
+[System]: You are an expert at analyzing hearing difficulty...
+[User]:   {example_audio_1} Label:
+[Model]:  P   (this was a hearing difficulty moment)
+[User]:   {example_audio_2} Label:
+[Model]:  N   (this was normal conversation)
+... (8 more examples) ...
+[User]:   {test_audio} Label:
+[Model]:  ?   ← the model predicts P or N
+```
+
+**Why it's the best method**: Unlike the hotword approach which only looks at transcribed words, Gemini processes the raw audio waveform. It can hear tone of voice, hesitation, confusion, pitch changes, and other subtle acoustic signals that indicate someone is struggling to understand. Combined with the semantic understanding of what words like "What?" mean in context, this gives it a much richer picture.
+
+**Strengths**: Can detect HDMs even when Whisper fails to transcribe them. Captures acoustic patterns (not just keywords). Learns from just 10 examples without any model training or fine-tuning.
+
+**Weaknesses**: Expensive (requires Gemini API calls for every segment), slow (~90 minutes for the full evaluation), and somewhat inconsistent across different data splits (F1 ranges from 0.47 to 0.70 depending on which meetings end up in the test set).
+
+**Per-Split Results** (showing the 5 cross-validation trials):
+
+| Split | F1 | Predicted Pos | True Pos | Test Size |
+|:---:|:---:|:---:|:---:|:---:|
+| 1 | 0.70 | 28 | 15 | 165 |
+| 2 | 0.47 | 58 | 19 | 209 |
+| 3 | 0.67 | 42 | 24 | 264 |
+| 4 | 0.54 | 59 | 26 | 286 |
+| 5 | 0.54 | 42 | 21 | 231 |
+| **Avg** | **0.58** | | | |
+
+**Key observation**: Gemini tends to **over-predict** positives (predicting 28–59 HDMs when only 15–26 actually exist). This means it has high recall (catches most real HDMs) but lower precision (many false alarms). This behavior is visible in the confusion matrices on the dashboard.
+
+**Result: F1 = 0.58 ± 0.09**
+
+---
+
+## Why Our F1 (0.58) Differs from the Paper (0.87)
 
 Several factors explain the performance gap:
 
@@ -39,6 +151,33 @@ Several factors explain the performance gap:
 4. **Different annotation source**: The paper used the native `signal-non-understanding` DAMSL tag from SWDA/MRDA, which directly annotates hearing difficulty. We derived our labels from AMI's broader `COMMENT-ABOUT-UNDERSTANDING` tag and applied filtering, which may include some false positives or miss some true HDMs.
 
 5. **Different model**: We used Gemini 3.1 Pro instead of the paper's Gemini 1.5 Pro. While 3.1 is generally more capable, its audio understanding characteristics may differ, and the paper may have benefited from specific behaviors of 1.5 Pro for this task.
+
+---
+
+## Interactive Dashboard
+
+The **[dashboard](https://chozillla.github.io/CollinsPaper/)** provides a visual overview of all trial results. Here's what each panel shows:
+
+| Panel | What It Shows |
+|---|---|
+| **F1 Score Comparison** | Bar chart comparing all four methods. The dashed pink line marks the original paper's F1 (0.87). Taller bars = better performance. Error bars show how much F1 varied across the 5 CV splits. |
+| **Per-Split F1 Distribution** | Box plots showing the spread of F1 scores across the 5 trials for each method. Wide boxes = inconsistent performance. |
+| **HDM Annotations by Type** | How the 149 HDM annotations were categorized: strong keyword matches ("What?", "Huh?"), explicit non-understanding ("Which was that?"), or short questions ("Sorry?"). |
+| **F1 Across CV Splits** | Line chart tracking each method's F1 on each of the 5 test splits. Shows whether a method is consistently good or erratic. |
+| **Test Set Composition** | How many positive (HDM) vs negative segments are in each test split. Shows the heavy class imbalance (~10:1 negative to positive). |
+| **Predicted vs Actual Positives** | For Gemini and Hotword: how many segments each method predicted as HDMs versus how many actually were. Gemini over-predicts; Hotword under-predicts. |
+| **Confusion Matrices** | For Gemini and Hotword: a 2x2 grid showing correct predictions (diagonal) vs errors (off-diagonal). Shows that Gemini's main weakness is false positives, while Hotword's is false negatives. |
+| **Precision-Recall Curves** | How Gemini's precision and recall trade off at different confidence thresholds. Each line is one CV split. |
+| **Confidence Distribution** | Histogram of Gemini's prediction confidence. Shows the model is very decisive — it predicts with either very low (0.1) or very high (0.9) confidence, with little in between. |
+| **HDM Duration Distribution** | How long the hearing difficulty utterances are (in milliseconds). Most are short bursts under 1 second. |
+| **HDMs by Speaker** | Pie chart showing which meeting participants (A, B, C, D) had the most hearing difficulty moments. |
+
+All charts are interactive — hover for exact values, click and drag to zoom, double-click to reset.
+
+To regenerate the dashboard after changing results:
+```bash
+uv run python src/dashboard.py
+```
 
 ---
 
@@ -93,82 +232,6 @@ Following the paper:
 
 ---
 
-## Baseline Methods
-
-### ASR Hotword Heuristic (Whisper)
-
-Replicates the paper's hotword baseline using OpenAI's Whisper speech recognition model. Each 4-second audio segment is transcribed, and the transcript is checked for keywords commonly associated with hearing difficulty:
-
-- **Strong indicators**: "huh", "what", "pardon", "sorry", "excuse me"
-- **Phrase patterns**: "say that again", "repeat that", "didn't catch", "can't hear", "come again"
-
-If any keyword or phrase is detected in the transcript, the segment is classified as positive (HDM). This is a purely lexical approach — it ignores all acoustic/prosodic cues and depends entirely on Whisper's transcription accuracy in noisy multi-speaker audio.
-
-**Result: F1 = 0.23 ± 0.11** — significantly lower than the paper's hotword baseline (F1 = 0.39), likely because AMI headset mix audio with overlapping speakers degrades transcription quality.
-
-### Random 50/50 Baseline
-
-A coin-flip classifier that predicts positive with 50% probability, independent of the audio. This tests what happens when a model guesses randomly without any signal.
-
-Because the dataset is heavily imbalanced (9.1% positive), predicting positive half the time produces many false positives, resulting in very low precision (~0.09). Averaged over 100 random seeds per CV split.
-
-**Result: F1 = 0.15 ± 0.03** — establishes the absolute floor for uninformed guessing.
-
-### Random Base-rate Baseline
-
-A smarter random classifier that matches the dataset's class distribution — predicts positive with only 9.1% probability (the true positive rate). This tests whether simply knowing the base rate is enough.
-
-Since it rarely predicts positive, it achieves slightly better precision than 50/50 but almost no recall. Averaged over 100 random seeds per CV split.
-
-**Result: F1 = 0.09 ± 0.06** — even worse than 50/50 because the rare positive predictions almost never land on actual HDMs.
-
----
-
-## 10-Shot Audio LLM Approach
-
-We replicate the paper's best method (Section 2.3) using **Gemini 3.1 Pro** instead of Gemini 1.5 Pro.
-
-### Prompt
-
-The exact prompt from the paper instructs the model to consider:
-
-1. **Non-semantic cues**: tone, pitch, Lombard effect indicators (increased fundamental frequency, spectral tilting, increased vowel duration, etc.)
-2. **Semantic cues**: keywords like "What?", "Can you repeat that?", "Huh?"
-3. **Subjectivity**: focus on the speaker's experience
-
-The model outputs "P" (positive/hearing difficulty) or "N" (negative).
-
-### Few-Shot Format
-
-For 10-shot classification:
-1. Present 5 positive + 5 negative audio examples with labels from the training set
-2. Append the target audio segment
-3. Model completes with P or N
-
-```
-[System]: {classification prompt}
-[User]:   {audio_example_1} Label:
-[Model]:  P
-[User]:   {audio_example_2} Label:
-[Model]:  N
-...
-[User]:   {target_audio} Label:
-[Model]:  ?  ← model predicts P or N
-```
-
-### Per-Split Results
-
-| Split | F1 | Predicted Pos | True Pos | Test Size |
-|:---:|:---:|:---:|:---:|:---:|
-| 1 | 0.70 | 28 | 15 | 165 |
-| 2 | 0.47 | 58 | 19 | 209 |
-| 3 | 0.67 | 42 | 24 | 264 |
-| 4 | 0.54 | 59 | 26 | 286 |
-| 5 | 0.54 | 42 | 21 | 231 |
-| **Avg** | **0.58** | | | |
-
----
-
 ## Project Structure
 
 ```
@@ -194,6 +257,8 @@ CollinsPaper/
 │   ├── baseline_hotword.json       # Hotword baseline results
 │   ├── random_baseline.json        # Random baseline results
 │   └── dashboard.html              # Interactive results dashboard
+├── docs/
+│   └── index.html                  # GitHub Pages dashboard (CDN version)
 ├── run_pipeline.sh                 # Run the full pipeline
 ├── pyproject.toml                  # Dependencies (managed by uv)
 └── .env                            # API keys (not tracked)
@@ -212,7 +277,7 @@ CollinsPaper/
 ### Install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/chozillla/CollinsPaper.git
 cd CollinsPaper
 uv sync
 ```
@@ -241,7 +306,8 @@ uv run python src/random_baseline.py
 uv run python src/baseline_hotword.py
 uv run python src/gemini_audio_classifier.py    # ~90 min, uses Gemini API
 
-# Step 5: Compare results
+# Step 5: Generate dashboard & compare results
+uv run python src/dashboard.py
 uv run python src/evaluate_all.py
 ```
 
