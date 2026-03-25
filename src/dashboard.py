@@ -491,9 +491,9 @@ section{margin-bottom:48px}
   border:1px solid #e2e8f0}
 .wave-canvas{width:100%;height:600px;display:block;cursor:pointer}
 .tl-canvas{height:700px}
-.wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
+.wave-cursor{position:absolute;top:0;left:50px;width:2px;height:100%;
   background:#3b82f6;box-shadow:0 0 6px rgba(59,130,246,.4);
-  pointer-events:none;opacity:0;transition:opacity .15s}
+  pointer-events:none;opacity:0}
 .wave-cursor.active{opacity:1}
 .wave-controls{display:flex;justify-content:space-between;align-items:center;
   margin-top:16px;padding:14px 18px;background:#f8fafc;border-radius:10px;
@@ -864,7 +864,12 @@ function initPlayers(){
         document.querySelectorAll('.play-btn').forEach(function(b){b.classList.remove('playing');b.innerHTML=playIcon;});
         document.querySelectorAll('.wave-cursor').forEach(function(c){c.classList.remove('active')});
         audio.play();btn.classList.add('playing');btn.innerHTML=pauseIcon;
-        if(cursor)cursor.classList.add('active');
+        if(cursor){
+          var wW=cursor.parentElement.getBoundingClientRect().width;
+          var PL=50,PR=16,pW=wW-PL-PR;
+          cursor.style.left=(PL+((audio.currentTime||0)/(audio.duration||1))*pW)+'px';
+          cursor.classList.add('active');
+        }
       }else{
         audio.pause();btn.classList.remove('playing');btn.innerHTML=playIcon;
         if(cursor)cursor.classList.remove('active');
