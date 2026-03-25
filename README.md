@@ -207,14 +207,24 @@ The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) contains 100 h
 
 ### Step 1: Identify Hearing Difficulty Moments
 
-The AMI corpus uses the `COMMENT-ABOUT-UNDERSTANDING` dialogue act tag (`ami_da_12`), which covers both understanding and non-understanding. We filter to keep only genuine **signal-non-understanding** utterances:
+The AMI corpus annotates dialogue acts with the `COMMENT-ABOUT-UNDERSTANDING` tag (`ami_da_12`), but this covers **both** understanding confirmations ("Okay", "Ah.") **and** non-understanding signals ("What?", "Huh?"). Collins et al. faced the same issue with SWDA/MRDA and filtered 522 annotations down to 298. We apply an analogous three-tier rule-based filter (see `src/filter_hdm.py`):
 
-- **Keep**: "What?", "Huh?", "Sorry?", "Pardon?", "Excuse me?", "What was that?", "I didn't catch that"
-- **Remove**: Understanding confirmations ("Ah.", "Okay", "Uh-huh")
-- **Remove**: Semantic clarification questions ("How high is it?", "What do you mean?")
-- **Remove**: Acknowledgments without question marks ("Hmm.", "sorry.")
+**Tier 1 — Strong keyword match** (122 instances): Single-word questions that unambiguously signal non-understanding. Matched via regex patterns requiring both the keyword and a question mark:
+- `"What?"`, `"Huh?"`, `"Hmm?"`, `"Sorry?"`, `"Pardon?"`, `"Excuse me?"`, `"Come again?"`
+- The question mark is critical — `"sorry."` with a period is an apology, not an HDM.
 
-This yields **149 HDM instances** across 75 meetings (comparable to the paper's 298 from SWDA/MRDA).
+**Tier 2 — Explicit non-understanding phrases** (7 instances): Multi-word phrases that explicitly request repetition:
+- `"Which was that?"`, `"What did you say?"`, `"Can you repeat that?"`, `"I didn't catch..."`
+
+**Tier 3 — Short questions** (20 instances): Brief questions (≤ 3 words) containing HDM-associated keywords ("what", "sorry", "which", "huh") that don't match Tiers 1–2 but are too short to be semantic clarifications:
+- `"what button?"`, `"what else?"`, `"I'm sorry?"`
+
+**Excluded** — the filter removes:
+- Understanding confirmations: "Ah.", "Okay", "Uh-huh", "Right", "Hmm." (no question mark)
+- Semantic clarification questions: "How high is it?", "What do you mean?", "Where is the controller?" — the speaker heard the words but asks about meaning, not repetition
+- Long utterances (> 5 words) without explicit non-understanding phrases — these are typically elaborations, not hearing difficulty signals
+
+This yields **149 HDM instances** across 75 meetings (comparable to the paper's 298 from SWDA/MRDA). The breakdown by tier is visible in the "HDM Annotations by Type" chart on the dashboard.
 
 ### Step 2: Build Audio Segments
 
