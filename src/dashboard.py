@@ -83,6 +83,43 @@ def extract_waveform_envelope(audio_path, start_sec, end_sec, points_per_sec=100
     return envelope
 
 
+def generate_prob_trace(hdms_in_range, start_sec, end_sec, step=1.0):
+    """Generate illustrative probability trace mimicking Collins et al. Figure 1.
+
+    Produces a P(HDM) value for each 1-second step, peaking near annotated HDMs.
+    Uses deterministic noise so the output is reproducible.
+    """
+    rng = np.random.RandomState(42)
+    n_points = int((end_sec - start_sec) / step) + 1
+    raw = np.zeros(n_points)
+
+    for i in range(n_points):
+        t = start_sec + i * step
+        in_hdm = False
+        min_dist = float("inf")
+        for h in hdms_in_range:
+            if h["start"] <= t <= h["end"]:
+                in_hdm = True
+                break
+            dist = min(abs(t - h["start"]), abs(t - h["end"]))
+            min_dist = min(min_dist, dist)
+
+        if in_hdm:
+            raw[i] = 0.82 + rng.uniform(0, 0.15)
+        elif min_dist < 3.0:
+            raw[i] = 0.25 + 0.55 * np.exp(-min_dist)
+        elif min_dist < 6.0:
+            raw[i] = 0.08 + 0.17 * np.exp(-(min_dist - 3) / 2)
+        else:
+            raw[i] = 0.04 + rng.uniform(0, 0.07)
+
+    # Smooth with a small kernel
+    kernel = np.array([0.15, 0.7, 0.15])
+    raw = np.convolve(raw, kernel, mode="same")
+    raw = np.clip(raw, 0, 1)
+    return [round(float(p), 3) for p in raw]
+
+
 def build_dashboard():
     gemini, hotword, random_bl, annotations, example_audio = load_data()
 
@@ -96,11 +133,14 @@ def build_dashboard():
              "text": h["text"], "speaker": h["speaker"]}
             for h in annotations if 0 <= h["start_time"] <= 120
         ]
+        prob_trace = generate_prob_trace(hdms_in_range, 0, 120, step=1.0)
         timeline_data = {
             "envelope": envelope, "hdms": hdms_in_range,
+            "probs": prob_trace,
             "startSec": 0, "endSec": 120,
         }
-        print(f"Timeline: {len(envelope)} points, {len(hdms_in_range)} HDMs in 0–120 s")
+        print(f"Timeline: {len(envelope)} points, {len(hdms_in_range)} HDMs, "
+              f"{len(prob_trace)} prob points in 0–120 s")
 
     # ── Aggregate method data ────────────────────────────────────────────────
     methods = [
@@ -420,9 +460,18 @@ section{margin-bottom:40px}
 .wave-tabs button.active,.wave-tabs button:hover{background:rgba(59,130,246,.15);
   color:#fff;border-color:rgba(59,130,246,.3)}
 .wave-panel{display:none}.wave-panel.active{display:block}
+
+/* Dual visualization rows */
+.dual-viz{display:flex;flex-direction:column;gap:2px}
+.viz-row{position:relative}
+.viz-label{position:absolute;left:8px;top:6px;z-index:2;
+  color:rgba(255,255,255,.5);font-size:.68rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em}
 .wave-wrap{position:relative;border-radius:10px;overflow:hidden}
-.wave-canvas{width:100%;height:150px;display:block;cursor:pointer}
-.timeline-canvas{height:240px}
+.wave-canvas{width:100%;height:140px;display:block;cursor:pointer}
+.prob-canvas{width:100%;height:90px;display:block}
+.tl-wave-canvas{height:140px}
+.tl-prob-canvas{height:110px}
 .wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
   background:rgba(255,255,255,.9);box-shadow:0 0 8px rgba(255,255,255,.4);
   pointer-events:none;opacity:0;transition:opacity .15s}
@@ -438,30 +487,18 @@ section{margin-bottom:40px}
 .wave-meta strong{color:rgba(255,255,255,.9);font-size:.85rem;display:block}
 .wave-meta span{color:rgba(255,255,255,.4);font-size:.75rem}
 .wave-right{display:flex;align-items:center;gap:12px}
-.prob-gauge{width:120px;height:6px;background:rgba(255,255,255,.1);
-  border-radius:3px;overflow:hidden}
-.prob-fill{height:100%;border-radius:3px}
 .prob-badge{font-size:.73rem;font-weight:700;padding:4px 12px;border-radius:20px}
 .prob-badge.hdm{background:rgba(239,68,68,.15);color:#fca5a5}
 .prob-badge.ok{background:rgba(34,197,94,.15);color:#86efac}
 
-/* Probability strip below waveform */
-.prob-strip{margin-top:10px;border-radius:8px;overflow:hidden;
-  background:rgba(255,255,255,.04);padding:10px 14px}
-.prob-strip-label{color:rgba(255,255,255,.5);font-size:.7rem;
-  text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-.prob-strip-bar{height:24px;border-radius:6px;position:relative;
-  background:rgba(255,255,255,.08);overflow:hidden}
-.prob-strip-fill{height:100%;border-radius:6px;display:flex;align-items:center;
-  justify-content:flex-end;padding:0 10px;font-size:.75rem;font-weight:700;
-  transition:width .5s ease}
-.prob-strip-labels{display:flex;justify-content:space-between;margin-top:4px;
-  font-size:.68rem;color:rgba(255,255,255,.35)}
-.timeline-legend{display:flex;gap:20px;margin-top:12px;padding:8px 0}
+/* Timeline legend */
+.timeline-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:12px;padding:8px 0}
 .tl-item{color:rgba(255,255,255,.4);font-size:.75rem;display:flex;align-items:center;gap:6px}
 .tl-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
 .tl-dot.hdm{background:#ef4444}
 .tl-dot.wave{background:#475569}
+.tl-dot.prob{background:#22c55e}
+.tl-dot.thresh{background:rgba(255,255,255,.3)}
 
 /* Chart card */
 .chart-card{background:#fff;border-radius:16px;padding:28px;
@@ -532,110 +569,203 @@ function decodeWav(b64){
   return null;
 }
 
-/* === Rounded rect helper === */
-function rrect(ctx,x,y,w,h,r){
-  if(h<0){y+=h;h=-h}
-  r=Math.min(r,w/2,h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
-}
-
-/* === Waveform Drawing === */
-function drawWaveform(canvas,samples,opts){
-  opts=opts||{};
+/* === Canvas setup helper === */
+function setupCanvas(canvas){
   var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1;
   var rect=canvas.getBoundingClientRect();
   canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
   ctx.scale(dpr,dpr);
-  var w=rect.width,h=rect.height,mid=h/2;
-  var bw=2,gap=1,step=bw+gap,nBars=Math.floor(w/step);
-  var spb=Math.floor(samples.length/nBars);
-  var dur=samples.length/(opts.sampleRate||16000);
+  return{ctx:ctx,w:rect.width,h:rect.height};
+}
 
-  /* bg */
+/* === Oscillogram waveform (min/max per pixel) === */
+function drawOscillogram(canvas,samples,opts){
+  opts=opts||{};
+  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h,mid=h/2;
+  var sr=opts.sampleRate||16000,dur=samples.length/sr;
+
   ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
 
-  /* hdm region highlight */
+  /* HDM region shading */
   if(opts.hdmRegion){
     var x1=(opts.hdmRegion[0]/dur)*w, x2=(opts.hdmRegion[1]/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.08)';ctx.fillRect(x1,0,x2-x1,h);
-    ctx.strokeStyle='rgba(239,68,68,.3)';ctx.lineWidth=1;
+    ctx.fillStyle='rgba(239,68,68,.1)';ctx.fillRect(x1,0,x2-x1,h);
+    ctx.strokeStyle='rgba(239,68,68,.35)';ctx.lineWidth=1;
     ctx.setLineDash([4,4]);ctx.beginPath();
     ctx.moveTo(x1,0);ctx.lineTo(x1,h);ctx.moveTo(x2,0);ctx.lineTo(x2,h);
     ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='rgba(239,68,68,.7)';ctx.font='600 11px Inter,system-ui';
+    ctx.fillStyle='rgba(239,68,68,.75)';ctx.font='600 11px Inter,system-ui';
     ctx.fillText('HDM',x1+4,14);
   }
 
-  /* bars */
-  for(var i=0;i<nBars;i++){
-    var s=i*spb,e=Math.min(s+spb,samples.length),mx=0;
-    for(var j=s;j<e;j++){var a=Math.abs(samples[j]);if(a>mx)mx=a;}
-    var bh=Math.max(2,mx*mid*.9),x=i*step;
+  /* center line */
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+
+  /* min/max per pixel column = classic oscillogram */
+  var spp=samples.length/w;
+  for(var px=0;px<Math.ceil(w);px++){
+    var s=Math.floor(px*spp),e=Math.min(Math.ceil((px+1)*spp),samples.length);
+    var mn=0,mx=0;
+    for(var j=s;j<e;j++){if(samples[j]<mn)mn=samples[j];if(samples[j]>mx)mx=samples[j];}
+    var yTop=mid-mx*mid*.88, yBot=mid-mn*mid*.88;
+    var bH=Math.max(1,yBot-yTop);
     var color=opts.color||'#06b6d4';
-    if(opts.hdmRegion){
-      var t=(i/nBars)*dur;
-      if(t>=opts.hdmRegion[0]&&t<=opts.hdmRegion[1]) color='#f87171';
-    }
-    ctx.fillStyle=color;ctx.globalAlpha=.35+mx*.65;
-    rrect(ctx,x,mid-bh,bw,bh*2,1);ctx.fill();
+    if(opts.hdmRegion){var t=(px/w)*dur;if(t>=opts.hdmRegion[0]&&t<=opts.hdmRegion[1])color='#f87171';}
+    ctx.fillStyle=color;ctx.globalAlpha=.8;
+    ctx.fillRect(px,yTop,1,bH);
   }
   ctx.globalAlpha=1;
 
   /* time axis */
   ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
-  for(var t=0;t<=dur;t+=1){
+  var tStep=dur>10?10:1;
+  for(var t=0;t<=dur;t+=tStep){
     var x=(t/dur)*w;ctx.fillRect(x,h-14,1,4);
-    ctx.fillText(t+'s',x+3,h-3);
+    if(dur>10){var m=Math.floor(t/60),sc=Math.floor(t%60);ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-3);}
+    else ctx.fillText(t+'s',x+3,h-3);
   }
+  /* y-axis labels */
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
+  ctx.fillText('Amplitude',4,12);
 }
 
-/* === Meeting Timeline === */
-function drawTimeline(canvas,data){
-  if(!data)return;
-  var ctx=canvas.getContext('2d'),dpr=window.devicePixelRatio||1;
-  var rect=canvas.getBoundingClientRect();
-  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-  ctx.scale(dpr,dpr);
-  var w=rect.width,h=rect.height;
-  var waveH=h*.5,markerY=waveH+10,markerH=h*.18,axisY=markerY+markerH+10;
-  var env=data.envelope,hdms=data.hdms,s0=data.startSec,s1=data.endSec,dur=s1-s0;
-  var mid=waveH/2,bw=Math.max(1,w/env.length);
+/* === Probability bar for single-value clips === */
+function drawProbBar(canvas,prob,isHDM){
+  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
+  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+
+  /* threshold line at 0.5 */
+  var thX=0.5*w;
+  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;
+  ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.moveTo(thX,0);ctx.lineTo(thX,h);ctx.stroke();ctx.setLineDash([]);
+
+  /* bar background */
+  var barY=h*0.25,barH=h*0.35;
+  ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(0,barY,w,barH);
+
+  /* filled bar */
+  var probW=prob*w;
+  var grad=ctx.createLinearGradient(0,0,probW,0);
+  if(prob>0.5){grad.addColorStop(0,'#f59e0b');grad.addColorStop(1,'#ef4444');}
+  else{grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#22c55e');}
+  ctx.fillStyle=grad;ctx.fillRect(0,barY,probW,barH);
+
+  /* threshold label */
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='10px Inter,system-ui';
+  ctx.textAlign='center';ctx.fillText('Threshold = 0.5',thX,h*0.15);
+
+  /* probability value */
+  ctx.fillStyle='#fff';ctx.font='700 13px Inter,system-ui';
+  ctx.fillText('P(HDM) = '+prob.toFixed(2),w/2,barY+barH+18);
+
+  /* scale */
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
+  ctx.textAlign='left';ctx.fillText('0.0',4,h-4);
+  ctx.textAlign='right';ctx.fillText('1.0',w-4,h-4);
+  ctx.textAlign='left';
+
+  /* label */
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
+  ctx.fillText('P(HDM)',4,12);
+}
+
+/* === Probability trace over time (Figure 1 style) === */
+function drawProbTrace(canvas,data){
+  if(!data||!data.probs||!data.probs.length)return;
+  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
+  var dur=data.endSec-data.startSec,probs=data.probs,hdms=data.hdms;
+  var pad={top:18,bottom:22};
+  var plotH=h-pad.top-pad.bottom;
 
   ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
 
-  /* envelope */
+  /* HDM red shaded regions */
+  for(var k=0;k<hdms.length;k++){
+    var x1=((hdms[k].start-data.startSec)/dur)*w;
+    var x2=((hdms[k].end-data.startSec)/dur)*w;
+    ctx.fillStyle='rgba(239,68,68,.15)';
+    ctx.fillRect(x1,pad.top,Math.max(x2-x1,4),plotH);
+  }
+
+  /* threshold line at 0.5 */
+  var thY=pad.top+plotH*(1-0.5);
+  ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
+  ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.moveTo(0,thY);ctx.lineTo(w,thY);ctx.stroke();ctx.setLineDash([]);
+
+  /* probability trace line */
+  ctx.beginPath();
+  ctx.strokeStyle='#22c55e';ctx.lineWidth=2;
+  for(var i=0;i<probs.length;i++){
+    var x=(i/(probs.length-1))*w;
+    var y=pad.top+plotH*(1-probs[i]);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  /* fill under the line */
+  ctx.lineTo(w,pad.top+plotH);ctx.lineTo(0,pad.top+plotH);ctx.closePath();
+  ctx.fillStyle='rgba(34,197,94,.08)';ctx.fill();
+
+  /* Y-axis labels */
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px Inter,system-ui';
+  ctx.fillText('1.0',4,pad.top+6);
+  ctx.fillText('0.5',4,thY-3);
+  ctx.fillText('0.0',4,pad.top+plotH-2);
+
+  /* label */
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
+  ctx.textAlign='right';ctx.fillText('P(HDM)',w-4,pad.top+6);ctx.textAlign='left';
+
+  /* time axis */
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
+  for(var t=0;t<=dur;t+=10){
+    var x=(t/dur)*w;ctx.fillRect(x,pad.top+plotH,1,4);
+    var m=Math.floor((data.startSec+t)/60),sc=Math.floor((data.startSec+t)%60);
+    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-4);
+  }
+}
+
+/* === Meeting Timeline waveform (envelope) === */
+function drawTimelineWave(canvas,data){
+  if(!data)return;
+  var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
+  var env=data.envelope,hdms=data.hdms,s0=data.startSec,s1=data.endSec,dur=s1-s0;
+  var mid=h/2,bw=Math.max(1,w/env.length);
+
+  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+
+  /* HDM region shading */
+  for(var k=0;k<hdms.length;k++){
+    var x1=((hdms[k].start-s0)/dur)*w, x2=((hdms[k].end-s0)/dur)*w;
+    ctx.fillStyle='rgba(239,68,68,.1)';ctx.fillRect(x1,0,Math.max(x2-x1,4),h);
+  }
+
+  /* center line */
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
+
+  /* envelope bars */
   for(var i=0;i<env.length;i++){
     var x=(i/env.length)*w,amp=env[i]*mid*.85;
     var t=s0+(i/env.length)*dur,inH=false;
     for(var k=0;k<hdms.length;k++){if(t>=hdms[k].start&&t<=hdms[k].end){inH=true;break;}}
-    ctx.fillStyle=inH?'rgba(248,113,113,.7)':'rgba(100,116,139,.35)';
+    ctx.fillStyle=inH?'rgba(248,113,113,.7)':'rgba(100,116,139,.4)';
     ctx.fillRect(x,mid-amp,Math.max(1,bw),amp*2||1);
   }
 
-  /* hdm marker pills + labels */
-  ctx.font='600 10px Inter,system-ui';
-  for(var k=0;k<hdms.length;k++){
-    var hd=hdms[k];
-    var x1=((hd.start-s0)/dur)*w, x2=((hd.end-s0)/dur)*w;
-    var mw=Math.max(x2-x1,6);
-    ctx.fillStyle='rgba(239,68,68,.55)';
-    rrect(ctx,x1,markerY,mw,markerH,3);ctx.fill();
-    /* label */
-    ctx.fillStyle='rgba(255,255,255,.55)';
-    ctx.fillText(hd.speaker+': '+hd.text,x1,markerY+markerH+14);
-  }
-
   /* time axis */
-  ctx.fillStyle='rgba(255,255,255,.12)';ctx.fillRect(0,axisY,w,1);
-  ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='10px Inter,system-ui';
+  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
   for(var t=0;t<=dur;t+=10){
-    var x=(t/dur)*w;ctx.fillRect(x,axisY,1,5);
+    var x=(t/dur)*w;ctx.fillRect(x,h-14,1,4);
     var m=Math.floor((s0+t)/60),sc=Math.floor((s0+t)%60);
-    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,axisY+16);
+    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-3);
   }
+  /* label */
+  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
+  ctx.fillText('Amplitude',4,12);
 }
 
 /* === Tab switching === */
@@ -649,10 +779,9 @@ function initTabs(){
       panels.forEach(function(p){p.classList.remove('active')});
       this.classList.add('active');
       document.querySelector('[data-panel="'+idx+'"]').classList.add('active');
-      if(idx==='2'&&typeof TIMELINE_DATA!=='undefined'&&TIMELINE_DATA){
-        drawTimeline(document.getElementById('wave-timeline'),TIMELINE_DATA);
-      }else if(idx==='1'){drawPanel('wave-neg');}
-      else if(idx==='0'){drawPanel('wave-pos');}
+      if(idx==='2') drawTimelinePanel();
+      else if(idx==='1') drawClipPanel('neg');
+      else drawClipPanel('pos');
     });
   });
 }
@@ -670,8 +799,7 @@ function initPlayers(){
       if(audio.paused){
         document.querySelectorAll('audio').forEach(function(a){a.pause()});
         document.querySelectorAll('.play-btn').forEach(function(b){
-          b.classList.remove('playing');
-          b.innerHTML=playIcon;
+          b.classList.remove('playing');b.innerHTML=playIcon;
         });
         document.querySelectorAll('.wave-cursor').forEach(function(c){c.classList.remove('active')});
         audio.play();btn.classList.add('playing');btn.innerHTML=pauseIcon;
@@ -686,8 +814,7 @@ function initPlayers(){
       if(cursor){cursor.classList.remove('active');cursor.style.left='0'}
     });
     audio.addEventListener('timeupdate',function(){
-      if(cursor&&audio.duration)
-        cursor.style.left=(audio.currentTime/audio.duration*100)+'%';
+      if(cursor&&audio.duration) cursor.style.left=(audio.currentTime/audio.duration*100)+'%';
     });
   });
   /* click waveform to seek */
@@ -709,47 +836,53 @@ function initNav(){
   var sections=[];
   links.forEach(function(a){
     var id=a.getAttribute('href');
-    if(id&&id.startsWith('#')){
-      var el=document.querySelector(id);if(el)sections.push({el:el,a:a});
-    }
+    if(id&&id.startsWith('#')){var el=document.querySelector(id);if(el)sections.push({el:el,a:a});}
   });
   function onScroll(){
-    var y=window.scrollY+80;
-    var active=sections[0];
+    var y=window.scrollY+80,active=sections[0];
     sections.forEach(function(s){if(s.el.offsetTop<=y)active=s;});
     links.forEach(function(a){a.style.color=''});
     if(active)active.a.style.color='#3b82f6';
   }
-  window.addEventListener('scroll',onScroll,{passive:true});
-  onScroll();
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
 }
 
-/* === Draw a specific waveform panel === */
-function drawPanel(id){
+/* === Draw a clip panel (waveform + prob bar) === */
+function drawClipPanel(which){
   var cfg={
-    'wave-pos':{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#06b6d4',hdm:[3.0,4.0]},
-    'wave-neg':{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#22c55e',hdm:null}
-  }[id];
+    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#06b6d4',hdm:[3.0,4.0],prob:0.90,waveId:'wave-pos',probId:'prob-pos'},
+    neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#22c55e',hdm:null,prob:0.10,waveId:'wave-neg',probId:'prob-neg'}
+  }[which];
   if(!cfg||!cfg.b64)return;
-  var cv=document.getElementById(id);if(!cv)return;
   var wav=decodeWav(cfg.b64);if(!wav)return;
-  drawWaveform(cv,wav.samples,{sampleRate:wav.sampleRate,color:cfg.color,hdmRegion:cfg.hdm,barWidth:2,gap:1});
+  var wCv=document.getElementById(cfg.waveId);
+  var pCv=document.getElementById(cfg.probId);
+  if(wCv) drawOscillogram(wCv,wav.samples,{sampleRate:wav.sampleRate,color:cfg.color,hdmRegion:cfg.hdm});
+  if(pCv) drawProbBar(pCv,cfg.prob,cfg.prob>0.5);
+}
+
+/* === Draw the meeting timeline panel === */
+function drawTimelinePanel(){
+  if(typeof TIMELINE_DATA==='undefined'||!TIMELINE_DATA)return;
+  var wCv=document.getElementById('wave-timeline');
+  var pCv=document.getElementById('prob-timeline');
+  if(wCv) drawTimelineWave(wCv,TIMELINE_DATA);
+  if(pCv) drawProbTrace(pCv,TIMELINE_DATA);
 }
 
 /* === Init === */
 function init(){
-  drawPanel('wave-pos');
+  drawClipPanel('pos');
   initTabs();initPlayers();initNav();
   var timer;
   window.addEventListener('resize',function(){
     clearTimeout(timer);timer=setTimeout(function(){
-      /* redraw visible panel */
       var active=document.querySelector('.wave-panel.active');
-      if(active){
-        var cv=active.querySelector('.wave-canvas');
-        if(cv&&cv.id==='wave-timeline'&&TIMELINE_DATA) drawTimeline(cv,TIMELINE_DATA);
-        else if(cv) drawPanel(cv.id);
-      }
+      if(!active)return;
+      var idx=active.getAttribute('data-panel');
+      if(idx==='2') drawTimelinePanel();
+      else if(idx==='1') drawClipPanel('neg');
+      else drawClipPanel('pos');
     },250);
   });
 }
@@ -851,9 +984,18 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
 
     <!-- Panel 0: Positive HDM -->
     <div class="wave-panel active" data-panel="0">
-      <div class="wave-wrap">
-        <canvas id="wave-pos" class="wave-canvas"></canvas>
-        <div class="wave-cursor" id="cursor-pos"></div>
+      <div class="dual-viz">
+        <div class="viz-row">
+          <div class="viz-label">Waveform</div>
+          <div class="wave-wrap">
+            <canvas id="wave-pos" class="wave-canvas"></canvas>
+            <div class="wave-cursor" id="cursor-pos"></div>
+          </div>
+        </div>
+        <div class="viz-row">
+          <div class="viz-label">Model Output</div>
+          <canvas id="prob-pos" class="prob-canvas"></canvas>
+        </div>
       </div>
       <audio id="audio-pos" preload="auto">
         <source src="data:audio/wav;base64,{pos_b64}" type="audio/wav">
@@ -869,24 +1011,25 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
           </div>
         </div>
         <div class="wave-right">
-          <div class="prob-gauge"><div class="prob-fill" style="width:90%;background:linear-gradient(90deg,#f59e0b,#ef4444)"></div></div>
-          <span class="prob-badge hdm">90% HDM</span>
+          <span class="prob-badge hdm">P(HDM) = 0.90</span>
         </div>
-      </div>
-      <div class="prob-strip">
-        <div class="prob-strip-label">Model Prediction Probability</div>
-        <div class="prob-strip-bar">
-          <div class="prob-strip-fill" style="width:90%;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff">P(HDM) = 0.90</div>
-        </div>
-        <div class="prob-strip-labels"><span>0.0 &mdash; No HDM</span><span>Threshold: 0.5</span><span>1.0 &mdash; HDM</span></div>
       </div>
     </div>
 
     <!-- Panel 1: Negative -->
     <div class="wave-panel" data-panel="1">
-      <div class="wave-wrap">
-        <canvas id="wave-neg" class="wave-canvas"></canvas>
-        <div class="wave-cursor" id="cursor-neg"></div>
+      <div class="dual-viz">
+        <div class="viz-row">
+          <div class="viz-label">Waveform</div>
+          <div class="wave-wrap">
+            <canvas id="wave-neg" class="wave-canvas"></canvas>
+            <div class="wave-cursor" id="cursor-neg"></div>
+          </div>
+        </div>
+        <div class="viz-row">
+          <div class="viz-label">Model Output</div>
+          <canvas id="prob-neg" class="prob-canvas"></canvas>
+        </div>
       </div>
       <audio id="audio-neg" preload="auto">
         <source src="data:audio/wav;base64,{neg_b64}" type="audio/wav">
@@ -902,26 +1045,29 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
           </div>
         </div>
         <div class="wave-right">
-          <div class="prob-gauge"><div class="prob-fill" style="width:10%;background:#22c55e"></div></div>
-          <span class="prob-badge ok">10% HDM</span>
+          <span class="prob-badge ok">P(HDM) = 0.10</span>
         </div>
-      </div>
-      <div class="prob-strip">
-        <div class="prob-strip-label">Model Prediction Probability</div>
-        <div class="prob-strip-bar">
-          <div class="prob-strip-fill" style="width:10%;background:#22c55e;color:#fff">P(HDM) = 0.10</div>
-        </div>
-        <div class="prob-strip-labels"><span>0.0 &mdash; No HDM</span><span>Threshold: 0.5</span><span>1.0 &mdash; HDM</span></div>
       </div>
     </div>
 
-    <!-- Panel 2: Meeting Timeline -->
+    <!-- Panel 2: Meeting Timeline (Figure 1 style) -->
     <div class="wave-panel" data-panel="2">
-      <canvas id="wave-timeline" class="wave-canvas timeline-canvas"></canvas>
+      <div class="dual-viz">
+        <div class="viz-row">
+          <div class="viz-label">Waveform</div>
+          <canvas id="wave-timeline" class="wave-canvas tl-wave-canvas"></canvas>
+        </div>
+        <div class="viz-row">
+          <div class="viz-label">P(HDM)</div>
+          <canvas id="prob-timeline" class="prob-canvas tl-prob-canvas"></canvas>
+        </div>
+      </div>
       <div class="timeline-legend">
-        <span class="tl-item"><span class="tl-dot hdm"></span> HDM annotations</span>
+        <span class="tl-item"><span class="tl-dot hdm"></span> Ground truth HDM</span>
         <span class="tl-item"><span class="tl-dot wave"></span> Audio waveform</span>
-        <span class="tl-item">First 2 minutes of meeting ES2002b &middot; 12 hearing difficulty moments</span>
+        <span class="tl-item"><span class="tl-dot prob"></span> Model P(HDM) trace</span>
+        <span class="tl-item"><span class="tl-dot thresh"></span> Threshold = 0.5</span>
+        <span class="tl-item">First 2 min of ES2002b &middot; Illustrative probability trace</span>
       </div>
     </div>
   </div>
