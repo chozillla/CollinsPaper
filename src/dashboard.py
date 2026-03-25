@@ -444,6 +444,19 @@ section{margin-bottom:40px}
 .prob-badge{font-size:.73rem;font-weight:700;padding:4px 12px;border-radius:20px}
 .prob-badge.hdm{background:rgba(239,68,68,.15);color:#fca5a5}
 .prob-badge.ok{background:rgba(34,197,94,.15);color:#86efac}
+
+/* Probability strip below waveform */
+.prob-strip{margin-top:10px;border-radius:8px;overflow:hidden;
+  background:rgba(255,255,255,.04);padding:10px 14px}
+.prob-strip-label{color:rgba(255,255,255,.5);font-size:.7rem;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.prob-strip-bar{height:24px;border-radius:6px;position:relative;
+  background:rgba(255,255,255,.08);overflow:hidden}
+.prob-strip-fill{height:100%;border-radius:6px;display:flex;align-items:center;
+  justify-content:flex-end;padding:0 10px;font-size:.75rem;font-weight:700;
+  transition:width .5s ease}
+.prob-strip-labels{display:flex;justify-content:space-between;margin-top:4px;
+  font-size:.68rem;color:rgba(255,255,255,.35)}
 .timeline-legend{display:flex;gap:20px;margin-top:12px;padding:8px 0}
 .tl-item{color:rgba(255,255,255,.4);font-size:.75rem;display:flex;align-items:center;gap:6px}
 .tl-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
@@ -638,7 +651,8 @@ function initTabs(){
       document.querySelector('[data-panel="'+idx+'"]').classList.add('active');
       if(idx==='2'&&typeof TIMELINE_DATA!=='undefined'&&TIMELINE_DATA){
         drawTimeline(document.getElementById('wave-timeline'),TIMELINE_DATA);
-      }
+      }else if(idx==='1'){drawPanel('wave-neg');}
+      else if(idx==='0'){drawPanel('wave-pos');}
     });
   });
 }
@@ -710,32 +724,33 @@ function initNav(){
   onScroll();
 }
 
+/* === Draw a specific waveform panel === */
+function drawPanel(id){
+  var cfg={
+    'wave-pos':{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',color:'#06b6d4',hdm:[3.0,4.0]},
+    'wave-neg':{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',color:'#22c55e',hdm:null}
+  }[id];
+  if(!cfg||!cfg.b64)return;
+  var cv=document.getElementById(id);if(!cv)return;
+  var wav=decodeWav(cfg.b64);if(!wav)return;
+  drawWaveform(cv,wav.samples,{sampleRate:wav.sampleRate,color:cfg.color,hdmRegion:cfg.hdm,barWidth:2,gap:1});
+}
+
 /* === Init === */
 function init(){
-  /* decode and draw waveforms */
-  [['audio-pos','wave-pos','#06b6d4',[3.0,4.0]],
-   ['audio-neg','wave-neg','#22c55e',null]].forEach(function(cfg){
-    var audioEl=document.getElementById(cfg[0]);
-    var canvasEl=document.getElementById(cfg[1]);
-    if(!audioEl||!canvasEl)return;
-    var src=audioEl.querySelector('source');
-    if(!src)return;
-    var srcVal=src.getAttribute('src')||'';
-    var idx=srcVal.indexOf('base64,');
-    if(idx<0)return;
-    var wav=decodeWav(srcVal.substring(idx+7));
-    if(!wav)return;
-    drawWaveform(canvasEl,wav.samples,{
-      sampleRate:wav.sampleRate,color:cfg[2],hdmRegion:cfg[3],barWidth:2,gap:1
-    });
-  });
-
+  drawPanel('wave-pos');
   initTabs();initPlayers();initNav();
-
-  /* resize handler */
   var timer;
   window.addEventListener('resize',function(){
-    clearTimeout(timer);timer=setTimeout(init,250);
+    clearTimeout(timer);timer=setTimeout(function(){
+      /* redraw visible panel */
+      var active=document.querySelector('.wave-panel.active');
+      if(active){
+        var cv=active.querySelector('.wave-canvas');
+        if(cv&&cv.id==='wave-timeline'&&TIMELINE_DATA) drawTimeline(cv,TIMELINE_DATA);
+        else if(cv) drawPanel(cv.id);
+      }
+    },250);
   });
 }
 document.addEventListener('DOMContentLoaded',init);
@@ -858,6 +873,13 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
           <span class="prob-badge hdm">90% HDM</span>
         </div>
       </div>
+      <div class="prob-strip">
+        <div class="prob-strip-label">Model Prediction Probability</div>
+        <div class="prob-strip-bar">
+          <div class="prob-strip-fill" style="width:90%;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff">P(HDM) = 0.90</div>
+        </div>
+        <div class="prob-strip-labels"><span>0.0 &mdash; No HDM</span><span>Threshold: 0.5</span><span>1.0 &mdash; HDM</span></div>
+      </div>
     </div>
 
     <!-- Panel 1: Negative -->
@@ -883,6 +905,13 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
           <div class="prob-gauge"><div class="prob-fill" style="width:10%;background:#22c55e"></div></div>
           <span class="prob-badge ok">10% HDM</span>
         </div>
+      </div>
+      <div class="prob-strip">
+        <div class="prob-strip-label">Model Prediction Probability</div>
+        <div class="prob-strip-bar">
+          <div class="prob-strip-fill" style="width:10%;background:#22c55e;color:#fff">P(HDM) = 0.10</div>
+        </div>
+        <div class="prob-strip-labels"><span>0.0 &mdash; No HDM</span><span>Threshold: 0.5</span><span>1.0 &mdash; HDM</span></div>
       </div>
     </div>
 
@@ -978,7 +1007,11 @@ def _build_full_page(chart_html, gemini, hotword, random_bl, annotations,
   <p><a href="https://github.com/chozillla/CollinsPaper">GitHub</a> &middot; <a href="https://arxiv.org/abs/2507.23590">Paper</a></p>
 </footer>
 
-<script>var TIMELINE_DATA={timeline_json};</script>
+<script>
+var TIMELINE_DATA={timeline_json};
+var AUDIO_POS_B64="{pos_b64}";
+var AUDIO_NEG_B64="{neg_b64}";
+</script>
 """
     return html + _JS + "\n</body>\n</html>"
 
