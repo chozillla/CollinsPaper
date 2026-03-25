@@ -81,14 +81,14 @@ def build_dashboard():
             [{"type": "heatmap"}, {"type": "heatmap"}, {"type": "scatter"}],
             [{"type": "histogram"}, {"type": "histogram"}, {"type": "pie"}],
         ],
-        vertical_spacing=0.10,
+        vertical_spacing=0.14,
         horizontal_spacing=0.08,
     )
 
-    # Style subplot titles
+    # Style subplot titles — nudge up so they sit above the chart area
     for ann in fig["layout"]["annotations"]:
         ann["font"] = dict(size=13, color="#333")
-        ann["y"] = ann["y"] + 0.01  # nudge titles up slightly within their row
+        ann["y"] = ann["y"] + 0.015
 
     # ────────────────────────────────────────────────────────────────────────
     # (1,1) F1 Comparison Bar
@@ -309,7 +309,7 @@ def build_dashboard():
             text="<b>HDM Detection — Trial Results Dashboard</b>",
             x=0.5, y=0.995, font=dict(size=22, color="#1565C0"),
         ),
-        height=2200,
+        height=2600,
         width=1400,
         template="plotly_white",
         font=dict(family="Inter, system-ui, sans-serif", size=11, color=C["text"]),
