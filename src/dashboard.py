@@ -918,7 +918,7 @@ function initNav(){
 /* === Draw clip panel === */
 function drawClipPanel(which){
   var cfg={
-    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',hdm:[3.0,4.0],prob:0.90,id:'wave-pos'},
+    pos:{b64:typeof AUDIO_POS_B64!=='undefined'?AUDIO_POS_B64:'',hdm:[3.0,3.73],prob:0.90,id:'wave-pos'},
     neg:{b64:typeof AUDIO_NEG_B64!=='undefined'?AUDIO_NEG_B64:'',hdm:null,prob:0.10,id:'wave-neg'}
   }[which];
   if(!cfg||!cfg.b64)return;
