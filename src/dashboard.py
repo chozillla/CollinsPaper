@@ -98,10 +98,16 @@ def build_dashboard():
             x=[name], y=[avg],
             error_y=dict(type="data", array=[std], visible=True, thickness=1.5),
             marker_color=color, name=name,
-            text=[f"{avg:.3f}"], textposition="outside", textfont_size=11,
             hovertemplate=f"<b>{name}</b><br>F1: {avg:.3f} ± {std:.3f}<extra></extra>",
             showlegend=False,
         ), row=1, col=1)
+        # Place value label well above the error bar
+        fig.add_annotation(
+            x=name, y=avg + std + 0.04,
+            text=f"<b>{avg:.3f}</b>", showarrow=False,
+            font=dict(size=12, color=color),
+            row=1, col=1,
+        )
     # Paper reference
     fig.add_hline(y=0.87, line_dash="dash", line_color=C["paper"], line_width=2,
                   annotation_text="Collins et al. F1=0.87",
