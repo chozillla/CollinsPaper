@@ -448,57 +448,61 @@ section{margin-bottom:40px}
 .kpi-card .value{font-size:2rem;font-weight:800}
 .kpi-card .sub{font-size:.68rem;color:#94a3b8;margin-top:2px}
 
-/* Wave section */
-.wave-section{background:#0f172a;border-radius:16px;padding:28px 32px;
-  box-shadow:0 4px 24px rgba(0,0,0,.2)}
-.wave-header h2{color:#fff;font-size:1.15rem;font-weight:700}
-.wave-header p{color:rgba(255,255,255,.4);font-size:.8rem;margin-top:2px}
+/* Wave section — light card design */
+.wave-section{background:#fff;border-radius:16px;padding:28px 32px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06)}
+.wave-header h2{color:#1e293b;font-size:1.3rem;font-weight:700}
+.wave-header p{color:#64748b;font-size:.85rem;margin-top:4px}
 .wave-tabs{display:flex;gap:8px;margin:20px 0}
-.wave-tabs button{background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);
-  border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 18px;
-  font-size:.8rem;font-weight:500;cursor:pointer;transition:all .2s;font-family:inherit}
-.wave-tabs button.active,.wave-tabs button:hover{background:rgba(59,130,246,.15);
-  color:#fff;border-color:rgba(59,130,246,.3)}
+.wave-tabs button{background:#f1f5f9;color:#64748b;
+  border:1px solid #e2e8f0;border-radius:8px;padding:10px 22px;
+  font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.wave-tabs button.active,.wave-tabs button:hover{background:#3b82f6;
+  color:#fff;border-color:#3b82f6}
 .wave-panel{display:none}.wave-panel.active{display:block}
 
 /* Dual visualization rows */
-.dual-viz{display:flex;flex-direction:column;gap:2px}
+.dual-viz{display:flex;flex-direction:column;gap:4px}
 .viz-row{position:relative}
-.viz-label{position:absolute;left:8px;top:6px;z-index:2;
-  color:rgba(255,255,255,.5);font-size:.68rem;font-weight:600;
-  text-transform:uppercase;letter-spacing:.06em}
-.wave-wrap{position:relative;border-radius:10px;overflow:hidden}
-.wave-canvas{width:100%;height:400px;display:block;cursor:pointer}
-.prob-canvas{width:100%;height:200px;display:block}
-.tl-wave-canvas{height:350px}
-.tl-prob-canvas{height:250px}
+.viz-label{position:absolute;left:10px;top:8px;z-index:2;
+  color:#64748b;font-size:.75rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;
+  background:rgba(255,255,255,.85);padding:2px 8px;border-radius:4px}
+.wave-wrap{position:relative;border-radius:12px;overflow:hidden;
+  border:1px solid #e2e8f0}
+.wave-canvas{width:100%;height:500px;display:block;cursor:pointer}
+.prob-canvas{width:100%;height:220px;display:block;border-radius:12px;
+  border:1px solid #e2e8f0}
+.tl-wave-canvas{height:400px}
+.tl-prob-canvas{height:280px}
 .wave-cursor{position:absolute;top:0;left:0;width:2px;height:100%;
-  background:rgba(255,255,255,.9);box-shadow:0 0 8px rgba(255,255,255,.4);
+  background:#3b82f6;box-shadow:0 0 8px rgba(59,130,246,.5);
   pointer-events:none;opacity:0;transition:opacity .15s}
 .wave-cursor.active{opacity:1}
 .wave-controls{display:flex;justify-content:space-between;align-items:center;
-  margin-top:14px;padding:12px 16px;background:rgba(255,255,255,.04);border-radius:10px}
+  margin-top:16px;padding:14px 18px;background:#f8fafc;border-radius:12px;
+  border:1px solid #e2e8f0}
 .wave-left{display:flex;align-items:center;gap:14px}
-.play-btn{width:38px;height:38px;border-radius:50%;background:#3b82f6;color:#fff;
+.play-btn{width:42px;height:42px;border-radius:50%;background:#3b82f6;color:#fff;
   border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:transform .15s,background .15s;flex-shrink:0}
 .play-btn:hover{transform:scale(1.08);background:#2563eb}
 .play-btn.playing{background:#ef4444}
-.wave-meta strong{color:rgba(255,255,255,.9);font-size:.85rem;display:block}
-.wave-meta span{color:rgba(255,255,255,.4);font-size:.75rem}
+.wave-meta strong{color:#1e293b;font-size:.9rem;display:block}
+.wave-meta span{color:#64748b;font-size:.78rem}
 .wave-right{display:flex;align-items:center;gap:12px}
-.prob-badge{font-size:.73rem;font-weight:700;padding:4px 12px;border-radius:20px}
-.prob-badge.hdm{background:rgba(239,68,68,.15);color:#fca5a5}
-.prob-badge.ok{background:rgba(34,197,94,.15);color:#86efac}
+.prob-badge{font-size:.8rem;font-weight:700;padding:6px 16px;border-radius:20px}
+.prob-badge.hdm{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.prob-badge.ok{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
 
 /* Timeline legend */
-.timeline-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:12px;padding:8px 0}
-.tl-item{color:rgba(255,255,255,.4);font-size:.75rem;display:flex;align-items:center;gap:6px}
-.tl-dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+.timeline-legend{display:flex;flex-wrap:wrap;gap:20px;margin-top:14px;padding:10px 0}
+.tl-item{color:#64748b;font-size:.8rem;display:flex;align-items:center;gap:6px}
+.tl-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
 .tl-dot.hdm{background:#ef4444}
-.tl-dot.wave{background:#475569}
+.tl-dot.wave{background:#3b82f6}
 .tl-dot.prob{background:#22c55e}
-.tl-dot.thresh{background:rgba(255,255,255,.3)}
+.tl-dot.thresh{background:#94a3b8}
 
 /* Chart card */
 .chart-card{background:#fff;border-radius:16px;padding:28px;
@@ -578,28 +582,38 @@ function setupCanvas(canvas){
   return{ctx:ctx,w:rect.width,h:rect.height};
 }
 
-/* === Oscillogram waveform (min/max per pixel) === */
+/* === Oscillogram waveform (min/max per pixel) — light theme === */
 function drawOscillogram(canvas,samples,opts){
   opts=opts||{};
   var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h,mid=h/2;
   var sr=opts.sampleRate||16000,dur=samples.length/sr;
+  var pad=30; /* bottom padding for time axis */
 
-  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+  /* white background */
+  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
+
+  /* subtle grid lines */
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+  for(var g=0.25;g<1;g+=0.25){
+    var gy=mid-g*(mid-pad/2)*.88, gy2=mid+g*(mid-pad/2)*.88;
+    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,gy2);ctx.lineTo(w,gy2);ctx.stroke();
+  }
 
   /* HDM region shading */
   if(opts.hdmRegion){
     var x1=(opts.hdmRegion[0]/dur)*w, x2=(opts.hdmRegion[1]/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.1)';ctx.fillRect(x1,0,x2-x1,h);
-    ctx.strokeStyle='rgba(239,68,68,.35)';ctx.lineWidth=1;
-    ctx.setLineDash([4,4]);ctx.beginPath();
-    ctx.moveTo(x1,0);ctx.lineTo(x1,h);ctx.moveTo(x2,0);ctx.lineTo(x2,h);
+    ctx.fillStyle='rgba(239,68,68,.12)';ctx.fillRect(x1,0,x2-x1,h-pad);
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;
+    ctx.setLineDash([6,4]);ctx.beginPath();
+    ctx.moveTo(x1,0);ctx.lineTo(x1,h-pad);ctx.moveTo(x2,0);ctx.lineTo(x2,h-pad);
     ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='rgba(239,68,68,.75)';ctx.font='600 11px Inter,system-ui';
-    ctx.fillText('HDM',x1+4,14);
+    ctx.fillStyle='#dc2626';ctx.font='700 13px Inter,system-ui';
+    ctx.fillText('HDM Region',x1+6,18);
   }
 
   /* center line */
-  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
 
   /* min/max per pixel column = classic oscillogram */
@@ -608,96 +622,119 @@ function drawOscillogram(canvas,samples,opts){
     var s=Math.floor(px*spp),e=Math.min(Math.ceil((px+1)*spp),samples.length);
     var mn=0,mx=0;
     for(var j=s;j<e;j++){if(samples[j]<mn)mn=samples[j];if(samples[j]>mx)mx=samples[j];}
-    var yTop=mid-mx*mid*.88, yBot=mid-mn*mid*.88;
+    var yTop=mid-mx*(mid-pad/2)*.88, yBot=mid-mn*(mid-pad/2)*.88;
     var bH=Math.max(1,yBot-yTop);
-    var color=opts.color||'#06b6d4';
-    if(opts.hdmRegion){var t=(px/w)*dur;if(t>=opts.hdmRegion[0]&&t<=opts.hdmRegion[1])color='#f87171';}
-    ctx.fillStyle=color;ctx.globalAlpha=.8;
+    var color=opts.color||'#3b82f6';
+    if(opts.hdmRegion){var t=(px/w)*dur;if(t>=opts.hdmRegion[0]&&t<=opts.hdmRegion[1])color='#ef4444';}
+    ctx.fillStyle=color;
     ctx.fillRect(px,yTop,1,bH);
   }
-  ctx.globalAlpha=1;
 
   /* time axis */
-  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
+  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,h-pad,w,1);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
   var tStep=dur>10?10:1;
   for(var t=0;t<=dur;t+=tStep){
-    var x=(t/dur)*w;ctx.fillRect(x,h-14,1,4);
-    if(dur>10){var m=Math.floor(t/60),sc=Math.floor(t%60);ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-3);}
-    else ctx.fillText(t+'s',x+3,h-3);
+    var x=(t/dur)*w;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,h-pad,1,6);
+    ctx.fillStyle='#64748b';
+    if(dur>10){var m=Math.floor(t/60),sc=Math.floor(t%60);ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);}
+    else ctx.fillText(t+'s',x+3,h-6);
   }
-  /* y-axis labels */
-  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
-  ctx.fillText('Amplitude',4,12);
+  /* y-axis label */
+  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
+  ctx.fillText('Amplitude',8,16);
 }
 
-/* === Probability bar for single-value clips === */
+/* === Probability bar for single-value clips — light theme === */
 function drawProbBar(canvas,prob,isHDM){
   var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
-  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
 
   /* threshold line at 0.5 */
   var thX=0.5*w;
-  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;
-  ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);ctx.beginPath();
   ctx.moveTo(thX,0);ctx.lineTo(thX,h);ctx.stroke();ctx.setLineDash([]);
 
   /* bar background */
-  var barY=h*0.25,barH=h*0.35;
-  ctx.fillStyle='rgba(255,255,255,.05)';ctx.fillRect(0,barY,w,barH);
+  var barY=h*0.22,barH=h*0.36;
+  ctx.fillStyle='#f1f5f9';ctx.fillRect(0,barY,w,barH);
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;ctx.strokeRect(0,barY,w,barH);
 
   /* filled bar */
   var probW=prob*w;
   var grad=ctx.createLinearGradient(0,0,probW,0);
   if(prob>0.5){grad.addColorStop(0,'#f59e0b');grad.addColorStop(1,'#ef4444');}
-  else{grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#22c55e');}
+  else{grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#16a34a');}
   ctx.fillStyle=grad;ctx.fillRect(0,barY,probW,barH);
 
   /* threshold label */
-  ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='10px Inter,system-ui';
-  ctx.textAlign='center';ctx.fillText('Threshold = 0.5',thX,h*0.15);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
+  ctx.textAlign='center';ctx.fillText('Threshold = 0.5',thX,barY-8);
 
   /* probability value */
-  ctx.fillStyle='#fff';ctx.font='700 13px Inter,system-ui';
-  ctx.fillText('P(HDM) = '+prob.toFixed(2),w/2,barY+barH+18);
+  ctx.fillStyle='#1e293b';ctx.font='700 18px Inter,system-ui';
+  ctx.fillText('P(HDM) = '+prob.toFixed(2),w/2,barY+barH+28);
 
   /* scale */
-  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
-  ctx.textAlign='left';ctx.fillText('0.0',4,h-4);
-  ctx.textAlign='right';ctx.fillText('1.0',w-4,h-4);
+  ctx.fillStyle='#94a3b8';ctx.font='600 12px Inter,system-ui';
+  ctx.textAlign='left';ctx.fillText('0.0',6,h-8);
+  ctx.textAlign='right';ctx.fillText('1.0',w-6,h-8);
   ctx.textAlign='left';
 
   /* label */
-  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
-  ctx.fillText('P(HDM)',4,12);
+  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
+  ctx.fillText('Model Output',8,16);
 }
 
-/* === Probability trace over time (Figure 1 style) === */
+/* === Probability trace over time (Figure 1 style) — light theme === */
 function drawProbTrace(canvas,data){
   if(!data||!data.probs||!data.probs.length)return;
   var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
   var dur=data.endSec-data.startSec,probs=data.probs,hdms=data.hdms;
-  var pad={top:18,bottom:22};
+  var pad={top:22,bottom:30};
   var plotH=h-pad.top-pad.bottom;
 
-  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
+
+  /* horizontal grid */
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+  for(var g=0;g<=1;g+=0.25){
+    var gy=pad.top+plotH*(1-g);
+    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();
+  }
 
   /* HDM red shaded regions */
   for(var k=0;k<hdms.length;k++){
     var x1=((hdms[k].start-data.startSec)/dur)*w;
     var x2=((hdms[k].end-data.startSec)/dur)*w;
     ctx.fillStyle='rgba(239,68,68,.15)';
-    ctx.fillRect(x1,pad.top,Math.max(x2-x1,4),plotH);
+    ctx.fillRect(x1,pad.top,Math.max(x2-x1,6),plotH);
+    /* red top border */
+    ctx.fillStyle='#ef4444';ctx.fillRect(x1,pad.top,Math.max(x2-x1,6),3);
   }
 
   /* threshold line at 0.5 */
-  var thY=pad.top+plotH*(1-0.5);
-  ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;
-  ctx.setLineDash([4,4]);ctx.beginPath();
+  var thY=pad.top+plotH*0.5;
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=1.5;
+  ctx.setLineDash([6,4]);ctx.beginPath();
   ctx.moveTo(0,thY);ctx.lineTo(w,thY);ctx.stroke();ctx.setLineDash([]);
+
+  /* probability trace — filled area */
+  ctx.beginPath();
+  ctx.moveTo(0,pad.top+plotH);
+  for(var i=0;i<probs.length;i++){
+    var x=(i/(probs.length-1))*w;
+    var y=pad.top+plotH*(1-probs[i]);
+    ctx.lineTo(x,y);
+  }
+  ctx.lineTo(w,pad.top+plotH);ctx.closePath();
+  ctx.fillStyle='rgba(34,197,94,.12)';ctx.fill();
 
   /* probability trace line */
   ctx.beginPath();
-  ctx.strokeStyle='#22c55e';ctx.lineWidth=2;
+  ctx.strokeStyle='#16a34a';ctx.lineWidth=2.5;
   for(var i=0;i<probs.length;i++){
     var x=(i/(probs.length-1))*w;
     var y=pad.top+plotH*(1-probs[i]);
@@ -705,67 +742,73 @@ function drawProbTrace(canvas,data){
   }
   ctx.stroke();
 
-  /* fill under the line */
-  ctx.lineTo(w,pad.top+plotH);ctx.lineTo(0,pad.top+plotH);ctx.closePath();
-  ctx.fillStyle='rgba(34,197,94,.08)';ctx.fill();
-
   /* Y-axis labels */
-  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='9px Inter,system-ui';
-  ctx.fillText('1.0',4,pad.top+6);
-  ctx.fillText('0.5',4,thY-3);
-  ctx.fillText('0.0',4,pad.top+plotH-2);
+  ctx.fillStyle='#64748b';ctx.font='600 11px Inter,system-ui';
+  ctx.fillText('1.0',6,pad.top+8);
+  ctx.fillText('0.5',6,thY-4);
+  ctx.fillText('0.0',6,pad.top+plotH-4);
 
   /* label */
-  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
-  ctx.textAlign='right';ctx.fillText('P(HDM)',w-4,pad.top+6);ctx.textAlign='left';
+  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
+  ctx.textAlign='right';ctx.fillText('P(HDM)',w-8,pad.top+8);ctx.textAlign='left';
 
   /* time axis */
-  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
+  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,pad.top+plotH,w,1);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
   for(var t=0;t<=dur;t+=10){
-    var x=(t/dur)*w;ctx.fillRect(x,pad.top+plotH,1,4);
+    var x=(t/dur)*w;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,pad.top+plotH,1,6);
+    ctx.fillStyle='#64748b';
     var m=Math.floor((data.startSec+t)/60),sc=Math.floor((data.startSec+t)%60);
-    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-4);
+    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);
   }
 }
 
-/* === Meeting Timeline waveform (envelope) === */
+/* === Meeting Timeline waveform (envelope) — light theme === */
 function drawTimelineWave(canvas,data){
   if(!data)return;
   var c=setupCanvas(canvas),ctx=c.ctx,w=c.w,h=c.h;
   var env=data.envelope,hdms=data.hdms,s0=data.startSec,s1=data.endSec,dur=s1-s0;
-  var mid=h/2,bw=Math.max(1,w/env.length);
+  var pad=30;
+  var mid=(h-pad)/2,bw=Math.max(1,w/env.length);
 
-  ctx.fillStyle='#0f172a';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,w,h);
 
   /* HDM region shading */
   for(var k=0;k<hdms.length;k++){
     var x1=((hdms[k].start-s0)/dur)*w, x2=((hdms[k].end-s0)/dur)*w;
-    ctx.fillStyle='rgba(239,68,68,.1)';ctx.fillRect(x1,0,Math.max(x2-x1,4),h);
+    ctx.fillStyle='rgba(239,68,68,.12)';ctx.fillRect(x1,0,Math.max(x2-x1,6),h-pad);
+    ctx.fillStyle='#ef4444';ctx.fillRect(x1,0,Math.max(x2-x1,6),3);
   }
 
   /* center line */
-  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(w,mid);ctx.stroke();
 
   /* envelope bars */
   for(var i=0;i<env.length;i++){
-    var x=(i/env.length)*w,amp=env[i]*mid*.85;
+    var x=(i/env.length)*w,amp=env[i]*mid*.88;
     var t=s0+(i/env.length)*dur,inH=false;
     for(var k=0;k<hdms.length;k++){if(t>=hdms[k].start&&t<=hdms[k].end){inH=true;break;}}
-    ctx.fillStyle=inH?'rgba(248,113,113,.7)':'rgba(100,116,139,.4)';
+    ctx.fillStyle=inH?'#ef4444':'#3b82f6';
+    ctx.globalAlpha=inH?0.8:0.5;
     ctx.fillRect(x,mid-amp,Math.max(1,bw),amp*2||1);
   }
+  ctx.globalAlpha=1;
 
   /* time axis */
-  ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Inter,system-ui';
+  ctx.fillStyle='#e2e8f0';ctx.fillRect(0,h-pad,w,1);
+  ctx.fillStyle='#64748b';ctx.font='600 12px Inter,system-ui';
   for(var t=0;t<=dur;t+=10){
-    var x=(t/dur)*w;ctx.fillRect(x,h-14,1,4);
+    var x=(t/dur)*w;
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(x,h-pad,1,6);
+    ctx.fillStyle='#64748b';
     var m=Math.floor((s0+t)/60),sc=Math.floor((s0+t)%60);
-    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+2,h-3);
+    ctx.fillText(m+':'+(sc<10?'0':'')+sc,x+3,h-6);
   }
   /* label */
-  ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px Inter,system-ui';
-  ctx.fillText('Amplitude',4,12);
+  ctx.fillStyle='#94a3b8';ctx.font='600 11px Inter,system-ui';
+  ctx.fillText('Amplitude',8,16);
 }
 
 /* === Tab switching === */
