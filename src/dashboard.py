@@ -81,9 +81,14 @@ def build_dashboard():
             [{"type": "heatmap"}, {"type": "heatmap"}, {"type": "scatter"}],
             [{"type": "histogram"}, {"type": "histogram"}, {"type": "pie"}],
         ],
-        vertical_spacing=0.08,
+        vertical_spacing=0.10,
         horizontal_spacing=0.08,
     )
+
+    # Style subplot titles
+    for ann in fig["layout"]["annotations"]:
+        ann["font"] = dict(size=13, color="#333")
+        ann["y"] = ann["y"] + 0.01  # nudge titles up slightly within their row
 
     # ────────────────────────────────────────────────────────────────────────
     # (1,1) F1 Comparison Bar
@@ -299,21 +304,22 @@ def build_dashboard():
         title=dict(
             text=(
                 "<b>HDM Detection — Trial Results Dashboard</b>"
-                "<br><sup>Collins et al. Replication · AMI Meeting Corpus · "
-                "5-Fold Monte Carlo CV · Hover/zoom/click to explore</sup>"
+                "<br><span style='font-size:12px;color:#666'>Collins et al. Replication · "
+                "AMI Meeting Corpus · 5-Fold Monte Carlo CV · Hover/zoom/click to explore</span>"
             ),
-            x=0.5, font=dict(size=20, color="#1565C0"),
+            x=0.5, y=0.98, font=dict(size=22, color="#1565C0"),
         ),
-        height=1800,
+        height=2000,
         width=1400,
         template="plotly_white",
         font=dict(family="Inter, system-ui, sans-serif", size=11, color=C["text"]),
         legend=dict(
-            orientation="h", yanchor="bottom", y=1.01, xanchor="center", x=0.5,
-            font_size=10, bgcolor="rgba(255,255,255,0.8)",
+            orientation="h", yanchor="top", y=-0.02, xanchor="center", x=0.5,
+            font_size=10, bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="#E0E0E0", borderwidth=1,
         ),
         barmode="group",
-        margin=dict(t=100, b=40, l=60, r=40),
+        margin=dict(t=140, b=80, l=60, r=40),
     )
 
     # Per-subplot axis labels
