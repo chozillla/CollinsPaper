@@ -154,7 +154,8 @@ def build_dashboard():
         hdms_in_range = [
             {"start": round(h["start_time"], 2), "end": round(h["end_time"], 2),
              "text": h["text"], "speaker": h["speaker"]}
-            for h in annotations if 0 <= h["start_time"] <= 120
+            for h in annotations
+            if h.get("meeting_id") == "ES2002b" and 0 <= h["start_time"] <= 120
         ]
         prob_trace = generate_prob_trace(hdms_in_range, 0, 120, step=1.0)
         meeting_audio_b64 = extract_audio_b64(audio_path, 0, 120)
