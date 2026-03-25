@@ -872,11 +872,15 @@ function initPlayers(){
     });
     audio.addEventListener('ended',function(){
       btn.classList.remove('playing');btn.innerHTML=playIcon;
-      if(cursor){cursor.classList.remove('active');cursor.style.left='0'}
+      if(cursor){cursor.classList.remove('active');cursor.style.left='50px'}
       if(timeEl&&audio.duration){var d=audio.duration,dm=Math.floor(d/60),ds=Math.floor(d%60);timeEl.textContent='0:00 / '+dm+':'+(ds<10?'0':'')+ds;}
     });
     audio.addEventListener('timeupdate',function(){
-      if(cursor&&audio.duration) cursor.style.left=(audio.currentTime/audio.duration*100)+'%';
+      if(cursor&&audio.duration){
+        var wW=cursor.parentElement.getBoundingClientRect().width;
+        var PL=50,PR=16,pW=wW-PL-PR;
+        cursor.style.left=(PL+(audio.currentTime/audio.duration)*pW)+'px';
+      }
       if(timeEl&&audio.duration){var ct=audio.currentTime,d=audio.duration,cm=Math.floor(ct/60),cs=Math.floor(ct%60),dm=Math.floor(d/60),ds=Math.floor(d%60);timeEl.textContent=cm+':'+(cs<10?'0':'')+cs+' / '+dm+':'+(ds<10?'0':'')+ds;}
     });
   });
@@ -885,7 +889,9 @@ function initPlayers(){
       var panel=cv.closest('.wave-panel');if(!panel)return;
       var audio=panel.querySelector('audio');if(!audio||!audio.duration)return;
       var r=cv.getBoundingClientRect();
-      audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;
+      var PL=50,PR=16,pW=r.width-PL-PR;
+      var frac=Math.max(0,Math.min(1,(e.clientX-r.left-PL)/pW));
+      audio.currentTime=frac*audio.duration;
       if(audio.paused){var b=panel.querySelector('.play-btn');if(b)b.click();}
     });
   });
