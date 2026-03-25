@@ -10,6 +10,7 @@ Following Collins et al.:
 - Monte Carlo cross-validation: 5 splits, 80/20
 """
 
+import gc
 import json
 import random
 import numpy as np
@@ -35,7 +36,7 @@ def load_audio(meeting_id):
     audio_path = AUDIO_DIR / f"{meeting_id}.Mix-Headset.wav"
     if not audio_path.exists():
         return None, None
-    data, sr = sf.read(str(audio_path))
+    data, sr = sf.read(str(audio_path), dtype="float32")
     # Convert to mono if stereo
     if len(data.shape) > 1:
         data = data.mean(axis=1)
@@ -196,9 +197,12 @@ def main():
         print("ERROR: No audio files found. Run download_audio.py first.")
         return
 
-    # Process each meeting
-    all_positive = []
-    all_negative = []
+    # Process each meeting — collect metadata and audio separately to limit memory
+    all_positive_meta = []
+    all_negative_meta = []
+    all_segments = []  # flat list of audio arrays, written incrementally
+
+    segment_len = int(SEGMENT_DURATION * SAMPLE_RATE)
 
     for meeting_id, hdms in sorted(available_meetings.items()):
         print(f"\nProcessing {meeting_id} ({len(hdms)} HDMs)...")
@@ -219,21 +223,30 @@ def main():
         negatives = sample_negative_examples(hdms, audio_data, sr, n_neg, meeting_id)
         print(f"  Negatives: {len(negatives)}")
 
-        all_positive.extend(positives)
-        all_negative.extend(negatives)
+        # Store metadata separately from audio to save memory
+        for ex in positives:
+            all_segments.append(ex.pop("audio"))
+            all_positive_meta.append(ex)
+        for ex in negatives:
+            all_segments.append(ex.pop("audio"))
+            all_negative_meta.append(ex)
+
+        # Free the large meeting audio
+        del audio_data
+        gc.collect()
 
     print(f"\n=== Dataset Summary ===")
-    print(f"Total positive: {len(all_positive)}")
-    print(f"Total negative: {len(all_negative)}")
-    print(f"Ratio: 1:{len(all_negative)/max(len(all_positive),1):.1f}")
+    print(f"Total positive: {len(all_positive_meta)}")
+    print(f"Total negative: {len(all_negative_meta)}")
+    print(f"Ratio: 1:{len(all_negative_meta)/max(len(all_positive_meta),1):.1f}")
 
     # Create Monte Carlo CV splits
     splits = create_splits(available_meetings)
 
     # Save dataset metadata (without audio, which is saved separately)
     dataset_meta = {
-        "positive": [{k: v for k, v in ex.items() if k != "audio"} for ex in all_positive],
-        "negative": [{k: v for k, v in ex.items() if k != "audio"} for ex in all_negative],
+        "positive": all_positive_meta,
+        "negative": all_negative_meta,
         "splits": [
             {"train": list(s["train"]), "test": list(s["test"])}
             for s in splits
@@ -250,9 +263,11 @@ def main():
         json.dump(dataset_meta, f, indent=2)
 
     # Save audio segments as numpy arrays
-    all_examples = all_positive + all_negative
-    audio_segments = np.array([ex["audio"] for ex in all_examples], dtype=np.float32)
-    labels = np.array([ex["label"] for ex in all_examples], dtype=np.int64)
+    audio_segments = np.array(all_segments, dtype=np.float32)
+    del all_segments  # free memory
+    n_pos = len(all_positive_meta)
+    n_neg = len(all_negative_meta)
+    labels = np.array([1] * n_pos + [0] * n_neg, dtype=np.int64)
     np.save(DATASET_DIR / "audio_segments.npy", audio_segments)
     np.save(DATASET_DIR / "labels.npy", labels)
 
@@ -263,8 +278,8 @@ def main():
 
     # Per-split statistics
     for i, split in enumerate(splits):
-        pos_train = sum(1 for ex in all_positive if ex["meeting_id"] in split["train"])
-        pos_test = sum(1 for ex in all_positive if ex["meeting_id"] in split["test"])
+        pos_train = sum(1 for ex in all_positive_meta if ex["meeting_id"] in split["train"])
+        pos_test = sum(1 for ex in all_positive_meta if ex["meeting_id"] in split["test"])
         print(f"\n  Split {i}: train_pos={pos_train}, test_pos={pos_test}, "
               f"train_meetings={len(split['train'])}, test_meetings={len(split['test'])}")
 

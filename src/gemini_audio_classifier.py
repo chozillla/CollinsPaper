@@ -1,13 +1,15 @@
 """
-10-Shot Audio LLM Classifier using Gemini 3.1 Pro
+10-Shot Audio LLM Classifier using Gemini 2.5 Flash Lite
 
 Replicating Collins et al. Section 2.3 — the paper used Gemini 1.5 Pro,
-we use the newer Gemini 3.1 Pro which has the same native audio input capability.
+we use Gemini 2.5 Flash Lite.
 
 Approach:
 - Feed 4-second audio segments directly to Gemini with the paper's exact prompt
-- 10-shot: 5 positive + 5 negative audio examples with labels
+- 10-shot: 5 positive + 5 negative audio examples with labels and confidence
 - Classify target segment as "P" (hearing difficulty) or "N" (no difficulty)
+- Model self-reports confidence (0.0-1.0) since logprobs are unavailable
+  on Google AI Studio (Vertex AI only)
 - Monte Carlo cross-validation (5 splits, 80/20)
 """
 
@@ -33,7 +35,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 SAMPLE_RATE = 16000
 RANDOM_SEED = 42
-MODEL_NAME = "gemini-3.1-pro-preview"
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 # The exact prompt from Collins et al. (Section 2.3)
 SYSTEM_PROMPT = """You are an expert at analyzing if a speaker in a given conversation is having difficulties understanding or hearing at a given moment. Please consider the following factors:
@@ -57,7 +59,7 @@ SYSTEM_PROMPT = """You are an expert at analyzing if a speaker in a given conver
 
 Use all of the context available but make your judgement only on if the current moment (ie. the end of the audio) is a hearing difficulty event or not.
 
-Answer only with "P" for POSITIVE meaning a hearing difficulty event or "N" for NEGATIVE meaning it isn't a hearing difficulty event. Do not include any other rationale or fluff in your response."""
+Answer with "P" for POSITIVE meaning a hearing difficulty event or "N" for NEGATIVE meaning it isn't a hearing difficulty event, followed by a space and your confidence as a decimal between 0.0 and 1.0 (e.g. "P 0.92" or "N 0.85"). Do not include any other rationale or fluff in your response."""
 
 
 def get_client():
@@ -77,7 +79,7 @@ def build_few_shot_contents(shot_examples, target_audio):
     """Build the content list for few-shot audio classification.
 
     Following the paper: present examples as
-      (Audio: [audio], Label: P/N)
+      (Audio: [audio], Label: P/N confidence)
     then the target:
       (Audio: [audio], Label: )
     """
@@ -86,7 +88,7 @@ def build_few_shot_contents(shot_examples, target_audio):
     # Few-shot examples as conversation turns
     for ex in shot_examples:
         wav_bytes = audio_to_wav_bytes(ex["audio"])
-        label_str = "P" if ex["label"] == 1 else "N"
+        label_str = "P 0.95" if ex["label"] == 1 else "N 0.95"
 
         # User turn: audio + "Label: "
         contents.append(
@@ -98,7 +100,7 @@ def build_few_shot_contents(shot_examples, target_audio):
                 ],
             )
         )
-        # Model turn: the label
+        # Model turn: the label with confidence
         contents.append(
             types.Content(
                 role="model",
@@ -121,6 +123,33 @@ def build_few_shot_contents(shot_examples, target_audio):
     return contents
 
 
+def parse_response(text):
+    """Parse model response like 'P 0.92' or 'N 0.85' into (prediction, prob_p)."""
+    text = text.strip().upper()
+    parts = text.split()
+
+    label = parts[0] if parts else ""
+    prediction = 1 if label == "P" else 0
+
+    # Parse confidence value
+    confidence = 0.5
+    if len(parts) >= 2:
+        try:
+            confidence = float(parts[1])
+            confidence = max(0.0, min(1.0, confidence))
+        except ValueError:
+            confidence = 0.5
+
+    # Convert to prob_p: if label is P, confidence IS prob_p
+    # If label is N, prob_p = 1 - confidence
+    if prediction == 1:
+        prob_p = confidence
+    else:
+        prob_p = 1.0 - confidence
+
+    return prediction, prob_p
+
+
 def classify_segment(client, shot_examples, target_audio):
     """Classify a single audio segment using 10-shot prompting."""
     contents = build_few_shot_contents(shot_examples, target_audio)
@@ -131,25 +160,18 @@ def classify_segment(client, shot_examples, target_audio):
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=100,  # need >1 to accommodate thinking
+                max_output_tokens=10,
                 temperature=0,
             ),
         )
 
-        # Extract non-thought text parts (Gemini 3.1 Pro has thinking by default)
-        text_parts = []
+        answer = ""
         if response.candidates and response.candidates[0].content.parts:
             for part in response.candidates[0].content.parts:
                 if not getattr(part, "thought", False) and part.text:
-                    text_parts.append(part.text.strip())
+                    answer += part.text
 
-        answer = "".join(text_parts).strip().upper()
-
-        # Confidence: simple binary from the answer (logprobs not reliably
-        # available with thinking models, so we use the answer directly)
-        prob_p = 0.9 if answer == "P" else 0.1
-
-        prediction = 1 if answer == "P" else 0
+        prediction, prob_p = parse_response(answer)
         return prediction, prob_p
 
     except Exception as e:
@@ -259,7 +281,7 @@ def main():
     random.seed(RANDOM_SEED)
     np.random.seed(RANDOM_SEED)
 
-    print(f"Gemini 3.1 Pro 10-Shot Audio Classification")
+    print(f"Gemini 2.5 Flash Lite 10-Shot Audio Classification")
     print("=" * 55)
     print("Replicating Collins et al. Section 2.3")
     print(f"Paper: Gemini 1.5 Pro → Ours: {MODEL_NAME}")

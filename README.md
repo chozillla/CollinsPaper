@@ -226,6 +226,18 @@ The AMI corpus annotates dialogue acts with the `COMMENT-ABOUT-UNDERSTANDING` ta
 
 This yields **149 HDM instances** across 75 meetings (comparable to the paper's 298 from SWDA/MRDA). The breakdown by tier is visible in the "HDM Annotations by Type" chart on the dashboard.
 
+**Important: labeling methodology differences from Collins et al.**
+
+| | Collins et al. | This replication |
+|---|---|---|
+| **Source tags** | `signal-non-understanding` DAMSL tag from SWDA/MRDA — a narrow tag specifically for non-understanding | `Comment-About-Understanding` from AMI — a broad tag covering both understanding and non-understanding |
+| **Filtering** | Manual human review of 522 → 298 utterances | Automated regex-based filtering of 2,560 → 149 utterances |
+| **Human verification** | Authors manually excluded semantic clarifications | No human verification — purely rule-based |
+| **Positive labels** | Human-confirmed hearing difficulty signals | Regex-matched patterns ("What?", "Huh?", "Sorry?", etc.) |
+| **Negative labels** | Random non-HDM audio segments (same as ours) | Random non-HDM audio segments |
+
+The ground truth labels used in this replication — including those used as the **10-shot examples** fed to Gemini — are entirely determined by this automated filtering pipeline. No annotator listened to the audio clips to verify they represent genuine hearing difficulty. The regex patterns are high-precision for clear-cut cases (e.g. "What?" with a question mark) but have not been validated against human judgement.
+
 ### Step 2: Build Audio Segments
 
 Following the paper:
