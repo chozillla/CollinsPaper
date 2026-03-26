@@ -143,34 +143,88 @@ We tested four methods of increasing sophistication. Think of them as a ladder: 
 
 ### Method 5: GPT-4o Audio (Azure) — Iterative Improvement to F1 = 0.97
 
-We ran an iterative optimization process using GPT-4o Audio Preview on Azure, which supports both native audio input and real token-level log probabilities (logprobs). Four versions were tested, each building on insights from the previous:
+We ran an iterative optimization process using GPT-4o Audio Preview (`gpt-4o-audio-preview`) on Azure, which supports both native audio input and real token-level log probabilities (logprobs). Four versions were tested, each building on insights from the previous. The full iterative journey — and why each change mattered — is documented below.
 
-**v1 (F1 = 0.14)** — Direct replication of the paper's 10-shot approach with GPT-4o Audio. Used 4-second audio segments and regex-based labels. Performance was poor due to massive false positive over-prediction.
+#### Step-by-step: How we went from F1 = 0.14 to F1 = 0.97
 
-**v2 (F1 = 0.46)** — Two key changes: (1) Extended audio context from 4s to **12 seconds** (4s before + 4s HDM + 4s after), giving the model more conversational context. (2) Used **human-verified** positive examples for the 10-shot prompts (see Human Labeling below). This tripled performance.
+**v1 (F1 = 0.14)** — Direct replication of the paper's 10-shot approach with GPT-4o Audio. Used 4-second audio segments and regex-based labels. Performance was poor — the model predicted 69–151 positives per split when only 25–34 actually existed, resulting in massive false positive over-prediction and very low precision (~31–40%). The model was essentially classifying any ambiguous audio as hearing difficulty.
 
-**v3 (F1 = 0.60)** — Introduced **hard negatives**: audio clips that the human labeler identified as NOT hearing difficulty despite containing keywords like "What?" or "Huh?" used conversationally. Also added transcripts alongside audio. This gave near-perfect precision (only 8 FP across 1,639 samples) but recall was too low.
+*Key lesson: the 4-second window and unverified labels are not enough. The model needs more context and better examples.*
 
-**v4 (F1 = 0.97)** — The final model balanced precision and recall with: (1) **20-shot prompting** (12 positive + 8 negative examples), (2) **mixed negatives** (hard negatives + random audio), (3) **enhanced acoustic prompt** with additional cues beyond the Lombard effect (voice quality, speaking rate, rising intonation, background noise, turn-taking disruption), and (4) a balanced prompt that didn't over-suppress positive predictions.
+**v2 (F1 = 0.46)** — Two key changes that tripled performance:
+1. **Extended audio context from 4s to 12 seconds** (4s before + 4s HDM segment + 4s after). This gives the model conversational context — it can hear what was said before the potential HDM and how the conversation continued after. The paper itself noted this as future work: *"information for several seconds after time t is also available... would likely lead to more powerful predictive power."*
+2. **Human-verified positive examples** for the 10-shot prompts. A human listened to each candidate HDM through a purpose-built labeling tool (see below) and confirmed whether it was genuine. This ensured the model was learning from real hearing difficulty, not regex artifacts.
 
-**v4 Per-Split Results:**
+*Key lesson: context matters enormously. Going from 4s to 12s lets the model judge whether "What?" is confusion vs. conversation. Human-verified examples prevent the model from learning wrong patterns.*
 
-| Split | F1 | TP | FP | FN |
-|:---:|:---:|:---:|:---:|:---:|
-| 1 | 0.9231 | 30 | 1 | 4 |
-| 2 | 0.9796 | 24 | 0 | 1 |
-| 3 | **1.0000** | 26 | 0 | 0 |
-| 4 | 0.9688 | 31 | 1 | 1 |
-| 5 | 0.9615 | 25 | 2 | 0 |
-| **Avg** | **0.9666** | | | |
+**v3 (F1 = 0.60)** — Introduced two more innovations:
+1. **Hard negatives**: Audio clips that a human labeler identified as NOT hearing difficulty despite containing keywords like "What?" or "Huh?" used conversationally. For example, "Which was that?" (asking about a topic), "Like a what?" (expressing surprise), "What else?" (continuing discussion). These taught the model the critical distinction between conversational questions and genuine hearing difficulty.
+2. **Transcripts alongside audio**: Each few-shot example included both the audio clip and its text transcript, giving the model both semantic and acoustic information.
+3. **Stricter prompt**: Added explicit guidance that not every "What?" is a hearing difficulty moment.
 
-**Key innovations over the paper's approach:**
-- **Extended audio context (12s vs 4s)**: The paper noted this as future work — "information for several seconds after time t is also available... would likely lead to more powerful predictive power." Our results confirm this.
-- **Human-verified few-shot examples**: Rather than using raw regex-filtered labels, a human listened to each candidate HDM and verified whether it was genuine.
-- **Hard negatives in few-shot**: Teaching the model that conversational "What?" ≠ hearing difficulty.
-- **Real logprobs from Azure GPT-4o Audio**: Token-level log probabilities (softmax over P/N tokens), not self-reported confidence.
+This gave **near-perfect precision** (only 8 FP across 1,639 samples) but **recall dropped too low** (31–72% across splits). The model became overly conservative — the strict prompt and hard negatives made it suppress too many genuine HDMs.
 
-**Result: F1 = 0.97 ± 0.03**
+*Key lesson: hard negatives are powerful for precision, but too much conservatism kills recall. Need to balance.*
+
+**v4 (F1 = 0.97)** — The final model balanced precision and recall through four changes:
+1. **20-shot prompting** (12 positive + 8 negative examples) instead of 10-shot (5+5). More positive examples gave the model a richer picture of what HDMs sound like across different speakers, tones, and contexts.
+2. **Mixed negatives**: The 8 negative examples used a mix of hard negatives (human-rejected HDMs) and random meeting audio (clearly non-HDM). This avoided the v3 problem where all-hard negatives made the model too conservative.
+3. **Enhanced acoustic prompt**: Extended the Lombard effect description with additional acoustic cues the model should listen for:
+   - Voice quality changes (strained, tense, effortful phonation)
+   - Speaking rate changes (slowing, hesitating, pausing)
+   - Rising intonation with confused/uncertain tone
+   - Filled pauses (um, uh) before asking for repetition
+   - Abrupt break in conversational turn-taking rhythm
+   - Background noise level and whether preceding speech was unclear
+4. **Balanced prompt**: Removed the overly conservative v3 warning ("not every What? is an HDM") that was suppressing recall. The hard negatives in the few-shot examples already teach this distinction implicitly.
+
+#### Why v4 performs so well
+
+The F1 = 0.97 result is not a lucky split — it is **consistent across all 5 cross-validation folds** (range: 0.92–1.00, std: 0.03). Several factors explain why this approach works:
+
+1. **The model hears the full conversational context**. With 12 seconds of audio (vs the paper's 4s), the model can judge whether "What?" is an isolated confused response to unclear speech (HDM) or a natural conversational question (not HDM). It can hear if the preceding speaker was mumbling, if there was overlapping speech, or if the conversation was flowing normally.
+
+2. **Human-verified few-shot examples are clean signal**. The 12 positive examples are all confirmed genuine HDMs — the model never learns from mislabeled data. The 8 negative examples include hard negatives that teach subtle distinctions.
+
+3. **The prompt leverages both acoustic and semantic reasoning**. The paper showed that audio-only Gemini (F1=0.75) vastly outperformed text-only Gemini (F1=0.39). Our enhanced prompt guides the model to listen for specific acoustic signatures (Lombard effect, voice strain, rising intonation) alongside semantic keywords, maximizing the audio modality advantage.
+
+4. **Real token-level logprobs** from Azure GPT-4o Audio provide calibrated confidence signals. The model outputs a probability distribution over the "P" and "N" tokens via softmax over their log probabilities, rather than self-reported confidence (which Gemini on Google AI Studio was limited to).
+
+5. **20-shot > 10-shot for this task**. More examples reduce variance in the model's behavior. The paper showed clear uplift from 0-shot (0.75) to 2-shot (0.85) to 10-shot (0.87). Our results show the trend continues: 10-shot v2 (0.46) → 20-shot v4 (0.97), with better example quality.
+
+#### v4 Per-Split Results (5-fold Monte Carlo Cross-Validation)
+
+Each split randomly assigns 80% of meetings to training and 20% to testing, at the **conversation level** (all segments from one meeting stay together). Few-shot examples are drawn from training meetings; all test segments are classified independently. F1 is computed per-split from the binary P/N predictions.
+
+| Split | F1 | TP | FP | FN | Test Size | True Pos |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | 0.9231 | 30 | 1 | 4 | 374 | 34 |
+| 2 | 0.9796 | 24 | 0 | 1 | 275 | 25 |
+| 3 | **1.0000** | 26 | 0 | 0 | 286 | 26 |
+| 4 | 0.9688 | 31 | 1 | 1 | 352 | 32 |
+| 5 | 0.9615 | 25 | 2 | 0 | 275 | 25 |
+| **Avg** | **0.9666** | **136** | **4** | **6** | **1,562** | **142** |
+
+- **Total across all splits**: 136 true positives, 4 false positives, 6 false negatives out of 1,562 test segments
+- **Split 3 achieved perfect classification** (F1 = 1.00): every single HDM was correctly identified with zero false alarms
+- **Precision**: 136/(136+4) = **97.1%** — almost no false alarms
+- **Recall**: 136/(136+6) = **95.8%** — catches nearly every HDM
+- **Consistency**: std = 0.03 across 5 folds, showing the result is robust to different train/test splits
+
+#### Comparison with the paper
+
+| | Collins et al. | This work (v4) |
+|---|---|---|
+| **Model** | Gemini 1.5 Pro | GPT-4o Audio Preview |
+| **F1** | 0.87 | **0.97** (+11%) |
+| **N-shot** | 10-shot (5P + 5N) | 20-shot (12P + 8N) |
+| **Audio context** | 4 seconds | **12 seconds** |
+| **Example selection** | Random from training set | **Human-verified** + hard negatives |
+| **Prompt** | Lombard effect + semantic cues | **Enhanced** (+ voice quality, prosody, context) |
+| **Confidence** | Token logprobs | Token logprobs |
+| **Dataset** | SWDA/MRDA (telephone + meetings) | AMI Meeting Corpus (group meetings) |
+
+**Result: F1 = 0.97 +/- 0.03**
 
 ### Human Labeling Tool
 
@@ -183,7 +237,37 @@ To improve the quality of few-shot examples, we built a web-based labeling tool 
 - The annotator presses **Y** (yes, genuine HDM) or **N** (no, not an HDM)
 - Labels auto-save to `data/hdm_labels.json`
 
-Of 84 labeled candidates: **77 were confirmed as genuine HDMs** (92%) and **7 were rejected** (false positives from the regex filter — e.g., "Which was that?", "Like a what?", "What else?" used conversationally). The 7 rejected items became valuable **hard negatives** for few-shot prompting.
+Of 84 labeled candidates: **77 were confirmed as genuine HDMs** (92%) and **7 were rejected** (false positives from the regex filter). The rejected items and their reasons:
+
+| Index | Text | Why it's not an HDM |
+|:---:|---|---|
+| 1 | "Which was that?" | Asking about a topic, not mishearing |
+| 43 | "Like a what?" | Expressing surprise at content |
+| 60 | "For what?" | Questioning purpose, not hearing |
+| 61 | "Mm what?" | Casual conversational response |
+| 74 | "What?" | Rhetorical/surprise, not hearing difficulty |
+| 76 | "What else?" | Continuing discussion |
+| 78 | "huh?" | Casual acknowledgment |
+
+These 7 rejected items became valuable **hard negatives** for few-shot prompting — they teach the model that not every short question is a hearing difficulty moment.
+
+### Figure 1 Dashboard
+
+The **[Figure 1 Dashboard](https://chozillla.github.io/CollinsPaper/figure1.html)** recreates Collins et al. Figure 1 with our GPT-4o v4 results:
+
+- **Interactive Plotly charts** — zoom, pan, and hover for exact P(HDM) values at any point
+- **Blue waveform** — the meeting audio envelope
+- **Green probability line** — continuous P(HDM) signal at 1-second resolution, built from the model's predictions across overlapping 4-second windows
+- **Red shaded bands** — ground truth HDM events
+- **Orange dashed threshold** at 0.97
+- **Audio playback** — each HDM event has a 10-second audio clip you can play directly in the browser
+- **8 meetings** with the most HDMs, switchable via buttons
+
+For the full interactive experience with scrubbing through complete meeting audio:
+```bash
+python src/waveform_dashboard.py
+# Open http://localhost:8766
+```
 
 ---
 
@@ -203,9 +287,14 @@ Several factors explain the performance gap:
 
 ---
 
-## Interactive Dashboard
+## Interactive Dashboards
 
-The **[dashboard](https://chozillla.github.io/CollinsPaper/)** provides a visual overview of all trial results. Here's what each panel shows:
+Two dashboards are available:
+
+1. **[Results Dashboard](https://chozillla.github.io/CollinsPaper/)** — bar charts, confusion matrices, precision-recall curves comparing all methods
+2. **[Figure 1 Dashboard](https://chozillla.github.io/CollinsPaper/figure1.html)** — interactive waveform + probability timeline with audio playback for each HDM event (recreating Collins et al. Figure 1)
+
+The **Results Dashboard** provides a visual overview of all trial results. Here's what each panel shows:
 
 | Panel | What It Shows |
 |---|---|
@@ -338,7 +427,9 @@ CollinsPaper/
 │   ├── random_baseline.json        # Random baseline results
 │   └── dashboard.html              # Interactive results dashboard
 ├── docs/
-│   └── index.html                  # GitHub Pages dashboard (CDN version)
+│   ├── index.html                  # GitHub Pages results dashboard
+│   ├── figure1.html                # Figure 1 dashboard with audio
+│   └── audio/                      # HDM audio clips for Figure 1 dashboard
 ├── run_pipeline.sh                 # Run the full pipeline
 ├── pyproject.toml                  # Dependencies (managed by uv)
 └── .env                            # API keys (not tracked)
@@ -392,10 +483,15 @@ uv run python src/build_dataset.py
 uv run python src/random_baseline.py
 uv run python src/baseline_hotword.py
 uv run python src/gemini_audio_classifier.py    # ~90 min, uses Gemini API
+uv run python src/gpt4o_audio_classifier_v4.py  # ~15 min, uses Azure GPT-4o Audio
 
-# Step 5: Generate dashboard & compare results
+# Step 5: (Optional) Human-label HDMs for better few-shot examples
+uv run python src/labeling_tool.py              # Open http://localhost:8765
+
+# Step 6: Generate dashboards & compare results
 uv run python src/dashboard.py
 uv run python src/evaluate_all.py
+uv run python src/waveform_dashboard.py         # Open http://localhost:8766
 ```
 
 Or run everything at once:
