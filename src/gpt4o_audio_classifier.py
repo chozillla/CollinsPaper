@@ -26,6 +26,9 @@ from dotenv import load_dotenv
 from sklearn.metrics import f1_score, precision_recall_curve, classification_report
 from tqdm import tqdm
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+MAX_WORKERS = 20  # parallel requests
 
 load_dotenv()
 
@@ -230,20 +233,25 @@ def evaluate_split(client, deployment, audio_segments, labels, meta, split_idx, 
     shot_examples = select_shot_examples(train_audio, train_labels, n_shots)
     print(f"  Selected {len(shot_examples)} shot examples ({sum(1 for e in shot_examples if e['label']==1)} pos, {sum(1 for e in shot_examples if e['label']==0)} neg)")
 
-    # Classify each test segment
-    predictions = []
-    probabilities = []
+    # Classify each test segment (parallel)
+    results_map = {}
+    pbar = tqdm(total=len(test_audio), desc=f"  Classifying split {split_idx+1}")
 
-    for i in tqdm(range(len(test_audio)), desc=f"  Classifying split {split_idx+1}"):
-        pred, prob = classify_segment(client, deployment, shot_examples, test_audio[i])
-        predictions.append(pred)
-        probabilities.append(prob)
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {
+            executor.submit(classify_segment, client, deployment, shot_examples, test_audio[i]): i
+            for i in range(len(test_audio))
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            pred, prob = future.result()
+            results_map[idx] = (pred, prob)
+            pbar.update(1)
 
-        # Rate limiting — be conservative
-        time.sleep(0.5)
+    pbar.close()
 
-    predictions = np.array(predictions)
-    probabilities = np.array(probabilities)
+    predictions = np.array([results_map[i][0] for i in range(len(test_audio))])
+    probabilities = np.array([results_map[i][1] for i in range(len(test_audio))])
 
     f1 = f1_score(test_labels, predictions, zero_division=0)
 
