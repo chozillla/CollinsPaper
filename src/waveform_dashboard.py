@@ -1,11 +1,13 @@
 """
-Interactive Figure 1 Dashboard — Plotly + Audio Playback.
+Interactive Figure 1 Dashboard — Plotly + Audio Playback + Few-Shot Examples.
 
 Fully interactive recreation of Collins et al. Figure 1:
 - Plotly chart: zoom, pan, hover for details
 - Click on chart to seek audio to that timestamp
 - Blue waveform, green probability line, red HDM bands, orange threshold
 - Audio playback with sync cursor
+- Few-shot examples panel with audio for each P/N example
+- Individual HDM clip playback
 
 Usage:
     python src/waveform_dashboard.py
@@ -13,12 +15,14 @@ Usage:
 """
 
 import gc
+import io
 import json
+import base64
 import numpy as np
 import soundfile as sf
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from collections import defaultdict
 
 ROOT = Path(__file__).parent.parent
@@ -26,14 +30,18 @@ AUDIO_DIR = ROOT / "data" / "audio"
 DATASET_DIR = ROOT / "data" / "dataset"
 RESULTS_DIR = ROOT / "results"
 SAMPLE_RATE = 16000
+RANDOM_SEED = 42
+N_POS_SHOTS = 12
+N_NEG_SHOTS = 8
 
 meeting_list = []  # [{id, duration, n_pos, tp, fp, fn}]
 meeting_details = {}  # mid -> {hdm_regions, samples}
 waveform_cache = {}
+shot_data = {}  # split_idx -> list of shot dicts
 
 
 def load_data():
-    global meeting_list, meeting_details
+    global meeting_list, meeting_details, shot_data
 
     with open(RESULTS_DIR / "gpt4o_20shot_v4_results.json") as f:
         v4 = json.load(f)
@@ -46,7 +54,11 @@ def load_data():
             human_labels = json.load(f)
 
     all_ex = meta["positive"] + meta["negative"]
+    n_positives = 149  # matches v4 classifier constant
     md = defaultdict(lambda: {"hdm_regions": [], "samples": []})
+
+    # Track which split each meeting belongs to (for shot lookup)
+    meeting_to_split = {}
 
     for i, ex in enumerate(meta["positive"]):
         mid = ex["meeting_id"]
@@ -61,6 +73,7 @@ def load_data():
     for si, sr in enumerate(v4["splits"]):
         sm = meta["splits"][si]
         tm = set(sm["test"])
+        train_meetings = set(sm["train"])
         ti = [j for j, ex in enumerate(all_ex) if ex["meeting_id"] in tm]
         for li, gi in enumerate(ti):
             ex = all_ex[gi]
@@ -72,6 +85,66 @@ def load_data():
                 "text": ex.get("text", ""),
                 "speaker": ex.get("speaker", ""),
             })
+
+        # Track which meetings are in this split's test set
+        for mid in tm:
+            meeting_to_split[mid] = si
+
+        # Build few-shot examples for this split
+        train_indices = [j for j, ex in enumerate(all_ex) if ex["meeting_id"] in train_meetings]
+        verified_pos, hard_neg, unverified_pos, random_neg = [], [], [], []
+        for idx in train_indices:
+            if idx < n_positives:
+                human = human_labels.get(str(idx))
+                if human == "yes":
+                    verified_pos.append(idx)
+                elif human == "no":
+                    hard_neg.append(idx)
+                else:
+                    unverified_pos.append(idx)
+            else:
+                random_neg.append(idx)
+
+        np.random.seed(RANDOM_SEED + si)
+        pos_pool = verified_pos if len(verified_pos) >= N_POS_SHOTS else verified_pos + unverified_pos
+        selected_pos = list(np.random.choice(pos_pool, size=min(N_POS_SHOTS, len(pos_pool)), replace=False))
+        n_hard = min(len(hard_neg), N_NEG_SHOTS // 2)
+        n_random = N_NEG_SHOTS - n_hard
+        hard_selected = list(np.random.choice(hard_neg, size=n_hard, replace=False)) if hard_neg else []
+        random_selected = list(np.random.choice(random_neg, size=min(n_random, len(random_neg)), replace=False))
+        selected_neg = hard_selected + random_selected
+
+        shots = []
+        pi, ni = 0, 0
+        while pi < len(selected_pos) or ni < len(selected_neg):
+            for _ in range(2):
+                if pi < len(selected_pos):
+                    idx = int(selected_pos[pi])
+                    ex = all_ex[idx]
+                    source = "human-verified" if human_labels.get(str(idx)) == "yes" else "unverified"
+                    shots.append({
+                        "idx": idx, "meeting_id": ex["meeting_id"],
+                        "speaker": ex.get("speaker", "?"),
+                        "sample_time": round(ex["sample_time"], 3),
+                        "text": ex.get("text", ""), "label": 1,
+                        "source": source,
+                    })
+                    pi += 1
+            if ni < len(selected_neg):
+                idx = int(selected_neg[ni])
+                ex = all_ex[idx]
+                is_hard = idx in hard_neg
+                source = "hard-negative" if is_hard else "random-negative"
+                shots.append({
+                    "idx": idx, "meeting_id": ex["meeting_id"],
+                    "speaker": ex.get("speaker", "?"),
+                    "sample_time": round(ex["sample_time"], 3),
+                    "text": ex.get("text", ""), "label": 0,
+                    "source": source,
+                })
+                ni += 1
+
+        shot_data[si] = shots
 
     for mid, data in sorted(md.items()):
         ap = AUDIO_DIR / f"{mid}.Mix-Headset.wav"
@@ -86,14 +159,17 @@ def load_data():
         tp = sum(1 for s in data["samples"] if s["label"] == 1 and s["pred"] == 1)
         fp = sum(1 for s in data["samples"] if s["label"] == 0 and s["pred"] == 1)
         fn = sum(1 for s in data["samples"] if s["label"] == 1 and s["pred"] == 0)
+        split_idx = meeting_to_split.get(mid, 0)
         meeting_list.append({
             "id": mid, "duration": round(info.duration, 2),
             "n_pos": n_pos, "tp": tp, "fp": fp, "fn": fn,
+            "split": split_idx,
         })
         meeting_details[mid] = data
 
     meeting_list.sort(key=lambda x: -x["n_pos"])
     print(f"Loaded {len(meeting_list)} meetings")
+    print(f"Loaded few-shot examples for {len(shot_data)} splits")
 
 
 def get_waveform(mid):
@@ -118,27 +194,71 @@ def get_waveform(mid):
 
 
 def get_prob_signal(mid):
-    """Build continuous probability signal at 1s resolution."""
+    """Build two probability signals: one for actual P predictions, one for logprob-only.
+
+    Returns separate spike traces for:
+    - pred_spikes: only samples where the model actually output "P" (pred=1)
+    - logprob_spikes: all samples' logprob P(HDM), shown as faded for context
+    """
     data = meeting_details[mid]
-    ap = AUDIO_DIR / f"{mid}.Mix-Headset.wav"
-    info = sf.info(str(ap))
-    duration = info.duration
+    samples = sorted(data["samples"], key=lambda s: s["time"])
 
-    step = 1.0
-    window = 4.0
-    n_steps = int(duration / step) + 1
-    prob = np.zeros(n_steps)
+    spike_half_width = 1.5  # seconds
 
-    for s in data["samples"]:
-        i_start = max(0, int((s["time"] - window) / step))
-        i_end = min(n_steps - 1, int(s["time"] / step))
-        for i in range(i_start, i_end + 1):
-            prob[i] = max(prob[i], s["prob_p"])
+    # Actual predictions (model output "P")
+    pred_times, pred_probs, pred_texts = [], [], []
+    # Logprob signal (all samples, faded)
+    log_times, log_probs, log_texts = [], [], []
+
+    for s in samples:
+        t = s["time"]
+        p = s["prob_p"]
+        hover = (
+            "Time: " + str(round(t, 1)) + "s | "
+            "P(HDM): " + str(round(p, 3)) + " | "
+            "Pred: " + ("P" if s["pred"] == 1 else "N") + " | "
+            "True: " + ("P" if s["label"] == 1 else "N") + " | "
+            + s.get("text", "")
+        )
+
+        # Logprob trace (all samples)
+        log_times.extend([t - spike_half_width, t, t + spike_half_width])
+        log_probs.extend([0, p, 0])
+        log_texts.extend(["", hover, ""])
+
+        # Actual prediction trace (only pred=1)
+        if s["pred"] == 1:
+            pred_times.extend([t - spike_half_width, t, t + spike_half_width])
+            pred_probs.extend([0, p, 0])
+            pred_texts.extend(["", hover, ""])
 
     return {
-        "times": (np.arange(n_steps) * step).round(3).tolist(),
-        "probs": prob.round(4).tolist(),
+        "pred_times": pred_times,
+        "pred_probs": pred_probs,
+        "pred_texts": pred_texts,
+        "log_times": log_times,
+        "log_probs": log_probs,
+        "log_texts": log_texts,
     }
+
+
+def extract_clip_b64(meeting_id, sample_time):
+    """Extract a 12s clip as base64 WAV."""
+    ap = AUDIO_DIR / f"{meeting_id}.Mix-Headset.wav"
+    if not ap.exists():
+        return None
+    audio, sr = sf.read(str(ap), dtype="float32")
+    if len(audio.shape) > 1:
+        audio = audio.mean(axis=1)
+    start = max(0, int((sample_time - 8.0) * sr))
+    end = min(len(audio), int((sample_time + 4.0) * sr))
+    clip = audio[start:end]
+    buf = io.BytesIO()
+    sf.write(buf, clip.astype(np.float32), sr, format="WAV")
+    buf.seek(0)
+    del audio
+    gc.collect()
+    return base64.b64encode(buf.read()).decode("utf-8")
 
 
 HTML = r"""<!DOCTYPE html>
@@ -195,6 +315,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tag-prob { background: #e9ecef; color: #495057; font-family: monospace; }
 
 .loading { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
+
+.section-title { padding: 12px 15px; font-size: 14px; font-weight: 700; color: #2c3e50; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.section-title:hover { background: #f8f9fa; }
+.section-title .toggle { font-size: 10px; color: #aaa; transition: transform 0.2s; }
+.section-title .toggle.open { transform: rotate(90deg); }
+
+.clip-player { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.clip-player audio { height: 28px; flex: 1; }
+.clip-btn { padding: 3px 10px; background: #1a9641; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.clip-btn:hover { background: #158a38; }
+.clip-btn.loading-clip { background: #999; pointer-events: none; }
+
+.shots-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.shot-item { padding: 10px 15px; border-bottom: 1px solid #f0f0f0; border-right: 1px solid #f0f0f0; }
+.shot-item:hover { background: #f8fff8; }
+.shot-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.shot-label { padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+.shot-label-p { background: #d4edda; color: #155724; }
+.shot-label-n { background: #f8d7da; color: #721c24; }
+.shot-source { font-size: 9px; padding: 1px 6px; border-radius: 8px; background: #e9ecef; color: #666; }
+.shot-meta { font-size: 11px; color: #888; margin-bottom: 2px; }
+.shot-text { font-size: 12px; color: #333; font-style: italic; margin-bottom: 4px; min-height: 16px; }
+.shot-order { font-size: 9px; color: #bbb; }
 </style>
 </head>
 <body>
@@ -202,12 +345,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="header">
   <h1>Audio Waveform vs. Model Prediction and Ground Truth</h1>
   <p>Recreating Collins et al. Figure 1 — GPT-4o Audio v4 (20-shot) on AMI Corpus | Click chart to seek audio</p>
+  <p style="font-size:10px;color:#999;margin-top:2px;">Green spikes = model output "P" (actual predictions used for F1). Gray spikes = raw logprob P(HDM) for all samples (unreliable — can be high even when model outputs "N").</p>
 </div>
 
 <div class="stats-bar">
-  <div class="stat-card"><div class="val">0.97</div><div class="lbl">Our F1 (v4)</div></div>
+  <div class="stat-card"><div class="val" id="s-f1">-</div><div class="lbl">Our F1 (v4)</div></div>
   <div class="stat-card"><div class="val muted">0.87</div><div class="lbl">Paper F1</div></div>
-  <div class="stat-card"><div class="val">1.00</div><div class="lbl">Best Split</div></div>
+  <div class="stat-card"><div class="val" id="s-best">-</div><div class="lbl">Best Split</div></div>
   <div class="stat-card"><div class="val" id="s-tp">-</div><div class="lbl">TP</div></div>
   <div class="stat-card"><div class="val" style="color:#da3633" id="s-fp">-</div><div class="lbl">FP</div></div>
   <div class="stat-card"><div class="val" style="color:#d29922" id="s-fn">-</div><div class="lbl">FN</div></div>
@@ -245,8 +389,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 
   <div class="events-card">
-    <div class="events-header" id="events-header">HDM Events</div>
+    <div class="section-title" onclick="toggleSection('events')">
+      <span class="toggle open" id="toggle-events">&#9654;</span>
+      <span id="events-header">HDM Events</span>
+    </div>
     <div id="events-list"></div>
+  </div>
+
+  <div class="events-card" style="margin-top:12px;">
+    <div class="section-title" onclick="toggleSection('shots')">
+      <span class="toggle open" id="toggle-shots">&#9654;</span>
+      <span>20-Shot Examples Used (P &amp; N labels sent to model)</span>
+    </div>
+    <div id="shots-list"></div>
   </div>
 </div>
 
@@ -255,6 +410,7 @@ let meetings = [];
 let currentMid = null;
 let audio = document.getElementById('audio');
 let cursorInterval = null;
+let clipCache = {};
 
 function fmtTime(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -274,6 +430,12 @@ async function init() {
     btn.id = 'btn-' + m.id;
     nav.appendChild(btn);
   });
+  // Compute global stats from results
+  const resp2 = await fetch('/api/global_stats');
+  const gs = await resp2.json();
+  document.getElementById('s-f1').textContent = gs.avg_f1.toFixed(2);
+  document.getElementById('s-best').textContent = gs.best_f1.toFixed(2);
+
   if (meetings.length > 0) selectMeeting(meetings[0].id);
 }
 
@@ -315,6 +477,7 @@ async function selectMeeting(mid) {
 
   buildChart(mid, m, wave, detail, prob);
   buildEventList(mid, m, detail);
+  buildShotList(m.split);
 
   // Start cursor update
   if (cursorInterval) clearInterval(cursorInterval);
@@ -342,19 +505,51 @@ function buildChart(mid, m, wave, detail, prob) {
     yaxis: 'y',
   });
 
-  // 2. Model prediction line (green, continuous)
-  const hoverTexts = prob.times.map((t, i) => {
-    const p = prob.probs[i];
-    return 'Time: ' + fmtTime(t) + '<br>P(HDM): ' + p.toFixed(3);
-  });
+  // 2a. Logprob signal (all samples — light orange, clearly different from predictions)
   traces.push({
-    x: prob.times, y: prob.probs,
+    x: prob.log_times, y: prob.log_probs,
     type: 'scatter', mode: 'lines',
-    line: { color: '#1a9641', width: 2 },
-    fill: 'tozeroy', fillcolor: 'rgba(26,150,65,0.08)',
-    name: 'Model Prediction',
-    text: hoverTexts, hoverinfo: 'text',
+    line: { color: 'rgba(255,165,0,0.35)', width: 0.8 },
+    fill: 'tozeroy', fillcolor: 'rgba(255,165,0,0.05)',
+    name: 'Raw Logprob P(HDM)',
+    text: prob.log_texts || [], hoverinfo: 'text',
     yaxis: 'y2',
+    legendrank: 3,
+  });
+
+  // 2b. Actual model predictions (only where model output "P" — bold green with markers)
+  // Build marker arrays: a dot at each spike peak
+  const predPeakX = [];
+  const predPeakY = [];
+  const predPeakText = [];
+  for (let i = 1; i < prob.pred_probs.length; i += 3) {
+    predPeakX.push(prob.pred_times[i]);
+    predPeakY.push(prob.pred_probs[i]);
+    predPeakText.push(prob.pred_texts[i] || '');
+  }
+
+  // Filled spike area
+  traces.push({
+    x: prob.pred_times, y: prob.pred_probs,
+    type: 'scatter', mode: 'lines',
+    line: { color: '#00c853', width: 3 },
+    fill: 'tozeroy', fillcolor: 'rgba(0,200,83,0.25)',
+    name: 'Model Predicted "P"',
+    text: prob.pred_texts || [], hoverinfo: 'text',
+    yaxis: 'y2',
+    legendrank: 2,
+  });
+
+  // Dot markers at prediction peaks for extra visibility
+  traces.push({
+    x: predPeakX, y: predPeakY,
+    type: 'scatter', mode: 'markers',
+    marker: { color: '#00c853', size: 10, symbol: 'diamond',
+              line: { color: '#fff', width: 1.5 } },
+    name: 'Prediction Peak',
+    text: predPeakText, hoverinfo: 'text',
+    yaxis: 'y2',
+    showlegend: false,
   });
 
   // 3. Playback cursor (vertical line, updated via relayout)
@@ -365,13 +560,15 @@ function buildChart(mid, m, wave, detail, prob) {
     name: 'Playback',
     hoverinfo: 'skip',
     yaxis: 'y',
+    legendrank: 5,
   });
 
   // 4. Dummy traces for legend
   traces.push({
     x: [null], y: [null], type: 'scatter', mode: 'lines',
     line: { color: 'rgba(255,50,50,0.7)', width: 10 },
-    name: 'Ground Truth Event',
+    name: 'Ground Truth HDM',
+    legendrank: 1,
   });
 
   // Layout with shapes for HDM regions and threshold
@@ -386,8 +583,8 @@ function buildChart(mid, m, wave, detail, prob) {
       xref: 'x', yref: 'paper',
       x0: center - minDur / 2, x1: center + minDur / 2,
       y0: 0, y1: 1,
-      fillcolor: 'rgba(255,50,50,0.3)',
-      line: { color: 'rgba(255,50,50,0.7)', width: 1.5 },
+      fillcolor: 'rgba(255,50,50,0.35)',
+      line: { color: 'rgba(220,30,30,0.8)', width: 2 },
       layer: 'below',
     });
   });
@@ -401,23 +598,20 @@ function buildChart(mid, m, wave, detail, prob) {
     line: { color: 'orange', width: 1.5, dash: 'dash' },
   });
 
-  // Positive prediction regions (green shading)
-  prob.probs.forEach((p, i) => {
-    if (p > 0.97 && (i === 0 || prob.probs[i - 1] <= 0.97)) {
-      // Find end of region
-      let j = i;
-      while (j < prob.probs.length && prob.probs[j] > 0.97) j++;
-      shapes.push({
-        type: 'rect',
-        xref: 'x', yref: 'paper',
-        x0: prob.times[i], x1: prob.times[Math.min(j, prob.times.length - 1)],
-        y0: 0, y1: 1,
-        fillcolor: 'rgba(26,150,65,0.1)',
-        line: { width: 0 },
-        layer: 'below',
-      });
-    }
-  });
+  // Positive prediction regions (bright green shading) — only where model actually output "P"
+  for (let i = 1; i < prob.pred_probs.length; i += 3) {
+    const t = prob.pred_times[i];
+    const halfW = 2.0;
+    shapes.push({
+      type: 'rect',
+      xref: 'x', yref: 'paper',
+      x0: t - halfW, x1: t + halfW,
+      y0: 0, y1: 1,
+      fillcolor: 'rgba(0,200,83,0.18)',
+      line: { color: 'rgba(0,200,83,0.5)', width: 1 },
+      layer: 'below',
+    });
+  }
 
   // Annotations for HDM text labels
   const annotations = detail.hdm_regions.map(r => ({
@@ -497,9 +691,9 @@ function updateCursor() {
   const t = audio.currentTime;
   const chartEl = document.getElementById('chart');
 
-  // Move the cursor trace
-  if (chartEl && chartEl.data && chartEl.data.length >= 4) {
-    Plotly.restyle('chart', { x: [[t, t]] }, [3]);
+  // Move the cursor trace (index 5: waveform upper+lower, logprob, pred, pred-markers, cursor)
+  if (chartEl && chartEl.data && chartEl.data.length >= 6) {
+    Plotly.restyle('chart', { x: [[t, t]] }, [5]);
   }
 
   document.getElementById('time-display').textContent =
@@ -598,40 +792,117 @@ function jumpTo(timeSec) {
 function buildEventList(mid, m, detail) {
   const el = document.getElementById('events-list');
   const header = document.getElementById('events-header');
-  header.textContent = 'HDM Events — ' + mid + ' (TP=' + m.tp + ' FP=' + m.fp + ' FN=' + m.fn + ') — Click to jump & play';
+  header.textContent = 'HDM Events \u2014 ' + mid + ' (TP=' + m.tp + ' FP=' + m.fp + ' FN=' + m.fn + ') \u2014 Click row to jump, click speaker to play clip';
 
   const pos = detail.samples.filter(s => s.label === 1);
   const fp = detail.samples.filter(s => s.label === 0 && s.pred === 1);
 
   let html = '';
-  pos.forEach(s => {
+  pos.forEach((s, i) => {
     const isTP = s.pred === 1;
     const cls = isTP ? '' : ' fn';
     const tag = isTP
       ? '<span class="tag tag-tp">TP</span>'
       : '<span class="tag tag-fn">FN</span>';
-    html += '<div class="event-row' + cls + '" onclick="jumpTo(' + s.time + ')">' +
-      '<div class="ev-time">' + fmtTime(s.time) + '</div>' +
-      '<div class="ev-text">"' + (s.text || '?') + '"</div>' +
+    const clipId = 'clip-pos-' + i;
+    html += '<div class="event-row' + cls + '">' +
+      '<div class="ev-time" style="cursor:pointer" onclick="jumpTo(' + s.time + ')">' + fmtTime(s.time) + '</div>' +
+      '<div class="ev-text" style="cursor:pointer" onclick="jumpTo(' + s.time + ')">\"' + (s.text || '?') + '\"</div>' +
       '<div class="ev-speaker">Speaker ' + s.speaker + '</div>' +
       tag +
       '<span class="tag tag-prob">P=' + s.prob_p.toFixed(3) + '</span>' +
-      '</div>';
+      '<button class="clip-btn" id="btn-' + clipId + '" onclick="playClip(\'' + mid + '\',' + s.time + ',\'' + clipId + '\')">Play 12s</button>' +
+      '</div>' +
+      '<div id="' + clipId + '" style="display:none;padding:2px 15px 8px;background:#f8f9fa;"></div>';
   });
 
   if (fp.length > 0) {
     html += '<div style="padding:8px 15px;font-size:12px;font-weight:600;color:#da3633;border-bottom:1px solid #f0f0f0">False Positives</div>';
-    fp.forEach(s => {
-      html += '<div class="event-row" onclick="jumpTo(' + s.time + ')" style="border-left:3px solid #da3633">' +
-        '<div class="ev-time">' + fmtTime(s.time) + '</div>' +
-        '<div class="ev-text">"' + (s.text || '') + '"</div>' +
+    fp.forEach((s, i) => {
+      const clipId = 'clip-fp-' + i;
+      html += '<div class="event-row" style="border-left:3px solid #da3633">' +
+        '<div class="ev-time" style="cursor:pointer" onclick="jumpTo(' + s.time + ')">' + fmtTime(s.time) + '</div>' +
+        '<div class="ev-text" style="cursor:pointer" onclick="jumpTo(' + s.time + ')">\"' + (s.text || '') + '\"</div>' +
         '<span class="tag tag-fp">FP</span>' +
         '<span class="tag tag-prob">P=' + s.prob_p.toFixed(3) + '</span>' +
-        '</div>';
+        '<button class="clip-btn" id="btn-' + clipId + '" onclick="playClip(\'' + mid + '\',' + s.time + ',\'' + clipId + '\')">Play 12s</button>' +
+        '</div>' +
+        '<div id="' + clipId + '" style="display:none;padding:2px 15px 8px;background:#f8f9fa;"></div>';
     });
   }
 
   el.innerHTML = html;
+}
+
+async function playClip(mid, time, clipId) {
+  const el = document.getElementById(clipId);
+  const btn = document.getElementById('btn-' + clipId);
+
+  if (el.style.display === 'block') {
+    el.style.display = 'none';
+    btn.textContent = 'Play 12s';
+    return;
+  }
+
+  btn.textContent = 'Loading...';
+  btn.classList.add('loading-clip');
+
+  const key = mid + '_' + time;
+  if (!clipCache[key]) {
+    const r = await fetch('/api/clip?meeting=' + mid + '&time=' + time);
+    clipCache[key] = await r.json();
+  }
+
+  el.innerHTML = '<div class="clip-player"><audio controls autoplay src="data:audio/wav;base64,' + clipCache[key].audio + '"></audio></div>';
+  el.style.display = 'block';
+  btn.textContent = 'Hide';
+  btn.classList.remove('loading-clip');
+}
+
+async function buildShotList(splitIdx) {
+  const el = document.getElementById('shots-list');
+  el.innerHTML = '<div class="loading">Loading few-shot examples...</div>';
+
+  const r = await fetch('/api/shots/' + splitIdx);
+  const shots = await r.json();
+
+  let html = '<div class="shots-grid">';
+  shots.forEach((s, i) => {
+    const isP = s.label === 1;
+    const labelCls = isP ? 'shot-label-p' : 'shot-label-n';
+    const labelTxt = isP ? 'P (HDM)' : 'N (Not HDM)';
+    const clipId = 'shot-clip-' + i;
+
+    let sourceBg = '#e9ecef';
+    if (s.source === 'human-verified') sourceBg = '#d4edda';
+    else if (s.source === 'hard-negative') sourceBg = '#fff3cd';
+
+    html += '<div class="shot-item">' +
+      '<div class="shot-header">' +
+        '<span class="shot-label ' + labelCls + '">' + labelTxt + '</span>' +
+        '<span class="shot-source" style="background:' + sourceBg + '">' + s.source + '</span>' +
+        '<span class="shot-order">#' + (i + 1) + '</span>' +
+      '</div>' +
+      '<div class="shot-meta">' + s.meeting_id + ' \u2014 Speaker ' + s.speaker + ' \u2014 ' + fmtTime(s.sample_time) + '</div>' +
+      '<div class="shot-text">' + (s.text ? '\"' + s.text + '\"' : '(no transcript)') + '</div>' +
+      '<button class="clip-btn" id="btn-' + clipId + '" onclick="playClip(\'' + s.meeting_id + '\',' + s.sample_time + ',\'' + clipId + '\')">Play 12s clip</button>' +
+      '<div id="' + clipId + '" style="display:none;margin-top:4px;"></div>' +
+    '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function toggleSection(name) {
+  const toggle = document.getElementById('toggle-' + name);
+  const list = document.getElementById(name + '-list');
+  if (list.style.display === 'none') {
+    list.style.display = '';
+    toggle.classList.add('open');
+  } else {
+    list.style.display = 'none';
+    toggle.classList.remove('open');
+  }
 }
 
 // Keyboard shortcuts
@@ -683,6 +954,34 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
+
+        elif p == "/api/global_stats":
+            with open(RESULTS_DIR / "gpt4o_20shot_v4_results.json") as f:
+                res = json.load(f)
+            self._json_response({
+                "avg_f1": res["avg_f1"],
+                "std_f1": res["std_f1"],
+                "best_f1": max(s["f1"] for s in res["splits"]),
+            })
+
+        elif p == "/api/clip":
+            params = parse_qs(urlparse(self.path).query)
+            mid = params.get("meeting", [None])[0]
+            time = float(params.get("time", [0])[0])
+            if mid:
+                b64 = extract_clip_b64(mid, time)
+                if b64:
+                    self._json_response({"audio": b64})
+                    return
+            self.send_response(404)
+            self.end_headers()
+
+        elif p.startswith("/api/shots/"):
+            split_idx = int(p.split("/api/shots/")[1])
+            if split_idx in shot_data:
+                self._json_response(shot_data[split_idx])
+            else:
+                self._json_response([])
 
         elif p.startswith("/audio/"):
             mid = p.split("/audio/")[1]
