@@ -70,10 +70,19 @@ def build_meeting_data(v4, meta, human_labels):
             })
 
     # Collect predictions from all splits
+    n_positives = len(meta["positive"])
     for split_idx, split_result in enumerate(v4["splits"]):
         split_meta = meta["splits"][split_idx]
         test_meetings = set(split_meta["test"])
         test_indices = [j for j, ex in enumerate(all_ex) if ex["meeting_id"] in test_meetings]
+
+        # Reconstruct the exact test indices the classifier used:
+        # positives first (by global index order), then negatives
+        pos_ti = [j for j in test_indices if j < n_positives]
+        neg_ti = [j for j in test_indices if j >= n_positives]
+        n_pos_result = sum(split_result["true_labels"])
+        n_neg_result = len(split_result["true_labels"]) - n_pos_result
+        test_indices = pos_ti[:n_pos_result] + neg_ti[:n_neg_result]
 
         for local_i, global_i in enumerate(test_indices):
             ex = all_ex[global_i]

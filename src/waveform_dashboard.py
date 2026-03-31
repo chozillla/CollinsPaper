@@ -75,6 +75,15 @@ def load_data():
         tm = set(sm["test"])
         train_meetings = set(sm["train"])
         ti = [j for j, ex in enumerate(all_ex) if ex["meeting_id"] in tm]
+
+        # Reconstruct the exact test indices the classifier used:
+        # positives first (by global index order), then negatives
+        pos_ti = [j for j in ti if j < n_positives]
+        neg_ti = [j for j in ti if j >= n_positives]
+        n_pos_result = sum(sr["true_labels"])
+        n_neg_result = len(sr["true_labels"]) - n_pos_result
+        ti = pos_ti[:n_pos_result] + neg_ti[:n_neg_result]
+
         for li, gi in enumerate(ti):
             ex = all_ex[gi]
             md[ex["meeting_id"]]["samples"].append({
@@ -345,7 +354,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="header">
   <h1>Audio Waveform vs. Model Prediction and Ground Truth</h1>
   <p>Recreating Collins et al. Figure 1 — GPT-4o Audio v4 (20-shot) on AMI Corpus | Click chart to seek audio</p>
-  <p style="font-size:10px;color:#999;margin-top:2px;">Green spikes = model output "P" (actual predictions used for F1). Gray spikes = raw logprob P(HDM) for all samples (unreliable — can be high even when model outputs "N").</p>
+  <p style="font-size:10px;color:#999;margin-top:2px;">Green spikes = model output "P" (actual predictions used for F1). Red bands = ground truth HDM events.</p>
 </div>
 
 <div class="stats-bar">
@@ -465,17 +474,19 @@ async function selectMeeting(mid) {
   // Show loading
   document.getElementById('chart').innerHTML = '<div class="loading">Loading waveform...</div>';
 
-  // Fetch waveform + meeting data + probability signal in parallel
-  const [waveResp, detailResp, probResp] = await Promise.all([
+  // Fetch waveform + meeting data + probability signal + sliding window in parallel
+  const [waveResp, detailResp, probResp, slidingResp] = await Promise.all([
     fetch('/api/waveform/' + mid),
     fetch('/api/detail/' + mid),
     fetch('/api/probsignal/' + mid),
+    fetch('/api/sliding/' + mid),
   ]);
   const wave = await waveResp.json();
   const detail = await detailResp.json();
   const prob = await probResp.json();
+  const sliding = await slidingResp.json();
 
-  buildChart(mid, m, wave, detail, prob);
+  buildChart(mid, m, wave, detail, prob, sliding);
   buildEventList(mid, m, detail);
   buildShotList(m.split);
 
@@ -484,8 +495,9 @@ async function selectMeeting(mid) {
   cursorInterval = setInterval(updateCursor, 200);
 }
 
-function buildChart(mid, m, wave, detail, prob) {
+function buildChart(mid, m, wave, detail, prob, sliding) {
   const traces = [];
+  const hasSliding = sliding && sliding.windows && sliding.windows.length > 0;
 
   // 1. Waveform envelope (blue filled area)
   traces.push({
@@ -505,54 +517,58 @@ function buildChart(mid, m, wave, detail, prob) {
     yaxis: 'y',
   });
 
-  // 2a. Logprob signal (all samples — light orange, clearly different from predictions)
-  traces.push({
-    x: prob.log_times, y: prob.log_probs,
-    type: 'scatter', mode: 'lines',
-    line: { color: 'rgba(255,165,0,0.35)', width: 0.8 },
-    fill: 'tozeroy', fillcolor: 'rgba(255,165,0,0.05)',
-    name: 'Raw Logprob P(HDM)',
-    text: prob.log_texts || [], hoverinfo: 'text',
-    yaxis: 'y2',
-    legendrank: 3,
-  });
-
-  // 2b. Actual model predictions (only where model output "P" — bold green with markers)
-  // Build marker arrays: a dot at each spike peak
-  const predPeakX = [];
-  const predPeakY = [];
-  const predPeakText = [];
-  for (let i = 1; i < prob.pred_probs.length; i += 3) {
-    predPeakX.push(prob.pred_times[i]);
-    predPeakY.push(prob.pred_probs[i]);
-    predPeakText.push(prob.pred_texts[i] || '');
+  // 2. Continuous probability signal (sliding window) — like paper's Figure 1
+  if (hasSliding) {
+    const swTimes = sliding.windows.map(w => w.time);
+    const swProbs = sliding.windows.map(w => w.prob_p);
+    const swTexts = sliding.windows.map(w =>
+      'Time: ' + w.time.toFixed(1) + 's | P(HDM): ' + w.prob_p.toFixed(3) +
+      ' | Pred: ' + (w.pred === 1 ? 'P' : 'N')
+    );
+    traces.push({
+      x: swTimes, y: swProbs,
+      type: 'scatter', mode: 'lines',
+      line: { color: '#1a9641', width: 1.5 },
+      fill: 'tozeroy', fillcolor: 'rgba(26,150,65,0.08)',
+      name: 'Model Prediction',
+      text: swTexts, hoverinfo: 'text',
+      yaxis: 'y2',
+      legendrank: 2,
+    });
+  } else {
+    // Fallback: show sparse prediction spikes if no sliding window data
+    const predPeakX = [];
+    const predPeakY = [];
+    const predPeakText = [];
+    for (let i = 1; i < prob.pred_probs.length; i += 3) {
+      predPeakX.push(prob.pred_times[i]);
+      predPeakY.push(prob.pred_probs[i]);
+      predPeakText.push(prob.pred_texts[i] || '');
+    }
+    traces.push({
+      x: prob.pred_times, y: prob.pred_probs,
+      type: 'scatter', mode: 'lines',
+      line: { color: '#00c853', width: 3 },
+      fill: 'tozeroy', fillcolor: 'rgba(0,200,83,0.25)',
+      name: 'Model Predicted "P"',
+      text: prob.pred_texts || [], hoverinfo: 'text',
+      yaxis: 'y2',
+      legendrank: 2,
+    });
+    traces.push({
+      x: predPeakX, y: predPeakY,
+      type: 'scatter', mode: 'markers',
+      marker: { color: '#00c853', size: 10, symbol: 'diamond',
+                line: { color: '#fff', width: 1.5 } },
+      name: 'Prediction Peak',
+      text: predPeakText, hoverinfo: 'text',
+      yaxis: 'y2',
+      showlegend: false,
+    });
   }
 
-  // Filled spike area
-  traces.push({
-    x: prob.pred_times, y: prob.pred_probs,
-    type: 'scatter', mode: 'lines',
-    line: { color: '#00c853', width: 3 },
-    fill: 'tozeroy', fillcolor: 'rgba(0,200,83,0.25)',
-    name: 'Model Predicted "P"',
-    text: prob.pred_texts || [], hoverinfo: 'text',
-    yaxis: 'y2',
-    legendrank: 2,
-  });
-
-  // Dot markers at prediction peaks for extra visibility
-  traces.push({
-    x: predPeakX, y: predPeakY,
-    type: 'scatter', mode: 'markers',
-    marker: { color: '#00c853', size: 10, symbol: 'diamond',
-              line: { color: '#fff', width: 1.5 } },
-    name: 'Prediction Peak',
-    text: predPeakText, hoverinfo: 'text',
-    yaxis: 'y2',
-    showlegend: false,
-  });
-
   // 3. Playback cursor (vertical line, updated via relayout)
+  // Cursor trace index: 2 (waveform) + 1 (prob signal or 2 for fallback) + 0
   traces.push({
     x: [0, 0], y: [-1, 1],
     type: 'scatter', mode: 'lines',
@@ -598,31 +614,54 @@ function buildChart(mid, m, wave, detail, prob) {
     line: { color: 'orange', width: 1.5, dash: 'dash' },
   });
 
-  // Positive prediction regions (bright green shading) — only where model actually output "P"
-  for (let i = 1; i < prob.pred_probs.length; i += 3) {
-    const t = prob.pred_times[i];
-    const halfW = 2.0;
-    shapes.push({
-      type: 'rect',
-      xref: 'x', yref: 'paper',
-      x0: t - halfW, x1: t + halfW,
-      y0: 0, y1: 1,
-      fillcolor: 'rgba(0,200,83,0.18)',
-      line: { color: 'rgba(0,200,83,0.5)', width: 1 },
-      layer: 'below',
+  // Positive prediction regions (bright green shading)
+  if (hasSliding) {
+    // Shade contiguous regions where sliding window pred=1
+    let regionStart = null;
+    const step = sliding.step_s || 4;
+    sliding.windows.forEach((w, i) => {
+      if (w.pred === 1 && regionStart === null) {
+        regionStart = w.time - step / 2;
+      } else if (w.pred !== 1 && regionStart !== null) {
+        shapes.push({
+          type: 'rect', xref: 'x', yref: 'paper',
+          x0: regionStart, x1: sliding.windows[i-1].time + step / 2,
+          y0: 0, y1: 1,
+          fillcolor: 'rgba(0,200,83,0.18)',
+          line: { color: 'rgba(0,200,83,0.5)', width: 1 },
+          layer: 'below',
+        });
+        regionStart = null;
+      }
     });
+    if (regionStart !== null) {
+      const last = sliding.windows[sliding.windows.length - 1];
+      shapes.push({
+        type: 'rect', xref: 'x', yref: 'paper',
+        x0: regionStart, x1: last.time + step / 2,
+        y0: 0, y1: 1,
+        fillcolor: 'rgba(0,200,83,0.18)',
+        line: { color: 'rgba(0,200,83,0.5)', width: 1 },
+        layer: 'below',
+      });
+    }
+  } else {
+    for (let i = 1; i < prob.pred_probs.length; i += 3) {
+      const t = prob.pred_times[i];
+      const halfW = 2.0;
+      shapes.push({
+        type: 'rect', xref: 'x', yref: 'paper',
+        x0: t - halfW, x1: t + halfW,
+        y0: 0, y1: 1,
+        fillcolor: 'rgba(0,200,83,0.18)',
+        line: { color: 'rgba(0,200,83,0.5)', width: 1 },
+        layer: 'below',
+      });
+    }
   }
 
-  // Annotations for HDM text labels
-  const annotations = detail.hdm_regions.map(r => ({
-    x: (r.start + r.end) / 2,
-    y: 1.02, yref: 'paper', xref: 'x',
-    text: r.text || '',
-    showarrow: false,
-    font: { size: 9, color: '#c0392b' },
-  }));
-
-  // Add threshold label
+  // Threshold label only (no HDM text annotations)
+  const annotations = [];
   annotations.push({
     x: 1.01, xref: 'paper',
     y: 0.97, yref: 'y2',
@@ -634,7 +673,7 @@ function buildChart(mid, m, wave, detail, prob) {
 
   const layout = {
     xaxis: {
-      title: { text: 'Time (ms)', font: { size: 11 } },
+      title: { text: 'Time (s)', font: { size: 9 } },
       tickformat: ',d',
       ticksuffix: '',
       dtick: Math.max(10, Math.round(m.duration / 10)),
@@ -644,14 +683,14 @@ function buildChart(mid, m, wave, detail, prob) {
       hoverformat: ',.0f',
     },
     yaxis: {
-      title: { text: 'Amplitude', font: { size: 11, color: 'steelblue' } },
-      tickfont: { color: 'steelblue' },
+      title: { text: 'Amplitude', font: { size: 9, color: 'steelblue' } },
+      tickfont: { size: 9, color: 'steelblue' },
       showgrid: true, gridcolor: 'rgba(0,0,0,0.05)',
       fixedrange: true,
     },
     yaxis2: {
-      title: { text: 'Model Probability', font: { size: 11, color: '#1a9641' } },
-      tickfont: { color: '#1a9641' },
+      title: { text: 'P(HDM)', font: { size: 9, color: '#1a9641' } },
+      tickfont: { size: 9, color: '#1a9641' },
       overlaying: 'y', side: 'right',
       range: [-0.05, 1.1],
       showgrid: false,
@@ -691,9 +730,13 @@ function updateCursor() {
   const t = audio.currentTime;
   const chartEl = document.getElementById('chart');
 
-  // Move the cursor trace (index 5: waveform upper+lower, logprob, pred, pred-markers, cursor)
-  if (chartEl && chartEl.data && chartEl.data.length >= 6) {
-    Plotly.restyle('chart', { x: [[t, t]] }, [5]);
+  // Move the cursor trace (last trace before the dummy legend trace)
+  // Find cursor trace by name
+  if (chartEl && chartEl.data) {
+    const cursorIdx = chartEl.data.findIndex(tr => tr.name === 'Playback');
+    if (cursorIdx >= 0) {
+      Plotly.restyle('chart', { x: [[t, t]] }, [cursorIdx]);
+    }
   }
 
   document.getElementById('time-display').textContent =
@@ -954,6 +997,15 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_response(404)
                 self.end_headers()
+
+        elif p.startswith("/api/sliding/"):
+            mid = p.split("/api/sliding/")[1]
+            sw_path = RESULTS_DIR / "sliding_window" / f"{mid}.json"
+            if sw_path.exists():
+                with open(sw_path) as f:
+                    self._json_response(json.load(f))
+            else:
+                self._json_response({"windows": []})
 
         elif p == "/api/global_stats":
             with open(RESULTS_DIR / "gpt4o_20shot_v4_results.json") as f:
