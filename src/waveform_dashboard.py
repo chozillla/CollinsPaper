@@ -397,7 +397,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div style="width:100%;font-size:10px;color:#aaa;margin-top:2px;">Drag scrubber to seek | Click chart to jump | Space = play/pause | Arrow keys = skip 5s</div>
   </div>
 
-  <div class="events-card">
+  <div class="audio-card" style="background:#f8fff8;border-color:#c8e6c9;padding:10px 15px;">
+    <div style="display:flex;align-items:center;gap:10px;width:100%;">
+      <button class="play-btn" style="background:#d32f2f;min-width:36px;padding:6px 12px;font-size:12px;border-radius:5px;" onclick="navDetection(-1)">&#9664;</button>
+      <button class="play-btn" style="background:#d32f2f;min-width:36px;padding:6px 12px;font-size:12px;border-radius:5px;" onclick="navDetection(1)">&#9654;</button>
+      <div style="font-size:13px;font-weight:600;color:#2c3e50;" id="det-nav-label">Detections: loading...</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+        <span id="det-nav-tag" style="font-size:11px;"></span>
+        <span id="det-nav-prob" style="font-family:monospace;font-size:12px;color:#666;"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="events-card" style="margin-top:12px;">
     <div class="section-title" onclick="toggleSection('events')">
       <span class="toggle open" id="toggle-events">&#9654;</span>
       <span id="events-header">HDM Events</span>
@@ -487,6 +499,7 @@ async function selectMeeting(mid) {
   const sliding = await slidingResp.json();
 
   buildChart(mid, m, wave, detail, prob, sliding);
+  buildDetectionsList(mid, detail, sliding);
   buildEventList(mid, m, detail);
   buildShotList(m.split);
 
@@ -829,6 +842,107 @@ function jumpTo(timeSec) {
     Plotly.relayout('chart', {
       'xaxis.range': [Math.max(0, timeSec - halfWindow), Math.min(m.duration, timeSec + halfWindow)],
     });
+  }
+}
+
+function buildDetectionsList(mid, detail, sliding) {
+  const el = document.getElementById('detections-list');
+  const header = document.getElementById('detections-header');
+  const THRESHOLD = 0.97;
+
+  if (!sliding || !sliding.windows || sliding.windows.length === 0) {
+    header.textContent = 'Detections — no sliding window data';
+    el.innerHTML = '<div style="padding:12px;color:#aaa;font-size:12px;">No sliding window data for this meeting.</div>';
+    return;
+  }
+
+  // Find all windows above threshold
+  const detections = sliding.windows.filter(w => w.prob_p >= THRESHOLD);
+
+  // Get ground truth HDM regions
+  const hdms = detail.hdm_regions || [];
+
+  // Check if a detection is near a ground truth HDM (within 6s)
+  function isTP(t) {
+    return hdms.some(h => Math.abs(t - (h.start + h.end) / 2) < 6);
+  }
+
+  const tpCount = detections.filter(d => isTP(d.time)).length;
+  const fpCount = detections.length - tpCount;
+  header.textContent = 'Detections above ' + THRESHOLD + ' — ' + detections.length + ' total (TP~' + tpCount + ' FP~' + fpCount + ')';
+
+  // Navigation buttons for prev/next detection
+  let html = '<div style="padding:8px 15px;display:flex;gap:6px;align-items:center;border-bottom:1px solid #f0f0f0;">';
+  html += '<button class="clip-btn" style="background:#495057" onclick="navDetection(-1)">Prev</button>';
+  html += '<button class="clip-btn" style="background:#495057" onclick="navDetection(1)">Next</button>';
+  html += '<span style="font-size:11px;color:#888;margin-left:8px;">Jump between detections</span>';
+  html += '</div>';
+
+  // List each detection
+  detections.forEach((d, i) => {
+    const tp = isTP(d.time);
+    const tag = tp
+      ? '<span class="tag tag-tp">TP</span>'
+      : '<span class="tag tag-fp">FP</span>';
+    const border = tp ? '' : 'border-left:3px solid #da3633;';
+    html += '<div class="event-row" style="' + border + '" data-det-time="' + d.time + '">' +
+      '<div class="ev-time" style="cursor:pointer" onclick="jumpTo(' + d.time + ')">' + fmtTime(d.time) + '</div>' +
+      '<div style="flex:1;font-size:12px;color:#666;cursor:pointer" onclick="jumpTo(' + d.time + ')">P(HDM) = ' + d.prob_p.toFixed(3) + '</div>' +
+      tag +
+      '<span class="tag tag-prob">' + (d.pred === 1 ? 'Pred: P' : 'Pred: N') + '</span>' +
+      '</div>';
+  });
+
+  if (detections.length === 0) {
+    html += '<div style="padding:12px;color:#aaa;font-size:12px;">No windows above threshold.</div>';
+  }
+
+  el.innerHTML = html;
+
+  // Store detections for prev/next navigation
+  window._detections = detections;
+  window._detTPs = detections.map(d => isTP(d.time));
+  window._detIdx = -1;
+  updateDetNav();
+}
+
+function updateDetNav() {
+  const label = document.getElementById('det-nav-label');
+  const tag = document.getElementById('det-nav-tag');
+  const prob = document.getElementById('det-nav-prob');
+  if (!window._detections || window._detections.length === 0) {
+    label.textContent = 'No detections above threshold';
+    tag.innerHTML = '';
+    prob.textContent = '';
+    return;
+  }
+  if (window._detIdx < 0) {
+    label.textContent = 'Detections: ' + window._detections.length + ' found — use arrows to navigate';
+    tag.innerHTML = '';
+    prob.textContent = '';
+    return;
+  }
+  const d = window._detections[window._detIdx];
+  const tp = window._detTPs[window._detIdx];
+  label.textContent = 'Detection ' + (window._detIdx + 1) + '/' + window._detections.length + '  @  ' + fmtTime(d.time);
+  tag.innerHTML = tp
+    ? '<span class="tag tag-tp">TP</span>'
+    : '<span class="tag tag-fp">FP</span>';
+  prob.textContent = 'P(HDM) = ' + d.prob_p.toFixed(3);
+}
+
+function navDetection(dir) {
+  if (!window._detections || window._detections.length === 0) return;
+  window._detIdx = (window._detIdx + dir + window._detections.length) % window._detections.length;
+  const d = window._detections[window._detIdx];
+  jumpTo(d.time);
+  updateDetNav();
+  // Highlight current row in list
+  document.querySelectorAll('[data-det-time]').forEach(r => r.style.background = '');
+  const row = document.querySelector('[data-det-time="' + d.time + '"]');
+  if (row) {
+    row.style.background = '#e8f5e9';
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
 
