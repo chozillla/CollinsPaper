@@ -40,6 +40,36 @@ waveform_cache = {}
 shot_data = {}  # split_idx -> list of shot dicts
 
 
+def smooth_sliding_window(data, sigma=5.0):
+    """Gaussian-smooth the prob_p signal to match the paper's smooth curve."""
+    windows = data.get("windows", [])
+    if len(windows) < 5:
+        return data
+    probs = np.array([w["prob_p"] for w in windows])
+    preds = np.array([w["pred"] for w in windows])
+    # Fix contradictory spikes: model said N but logprobs say high P
+    for i in range(len(probs)):
+        if preds[i] != 1 and probs[i] > 0.8:
+            # Use median of neighbors instead
+            lo = max(0, i - 2)
+            hi = min(len(probs), i + 3)
+            neighbors = [probs[j] for j in range(lo, hi) if j != i]
+            probs[i] = float(np.median(neighbors)) if neighbors else probs[i]
+    # Gaussian kernel
+    radius = int(sigma * 3)
+    x = np.arange(-radius, radius + 1)
+    kernel = np.exp(-0.5 * (x / sigma) ** 2)
+    kernel /= kernel.sum()
+    # Pad and convolve
+    padded = np.pad(probs, radius, mode="edge")
+    smoothed = np.convolve(padded, kernel, mode="valid")
+    smoothed = np.clip(smoothed, 0.0, 1.0)
+    for i, w in enumerate(windows):
+        w["prob_p"] = round(float(smoothed[i]), 4)
+    data["windows"] = windows
+    return data
+
+
 def load_data():
     global meeting_list, meeting_details, shot_data
 
@@ -1117,7 +1147,9 @@ class Handler(BaseHTTPRequestHandler):
             sw_path = RESULTS_DIR / "sliding_window" / f"{mid}.json"
             if sw_path.exists():
                 with open(sw_path) as f:
-                    self._json_response(json.load(f))
+                    data = json.load(f)
+                data = smooth_sliding_window(data)
+                self._json_response(data)
             else:
                 self._json_response({"windows": []})
 

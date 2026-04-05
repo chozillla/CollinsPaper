@@ -40,7 +40,7 @@ SAMPLE_RATE = 16000
 SEGMENT_DURATION = 4.0
 CONTEXT_BEFORE = 4.0
 CONTEXT_AFTER = 4.0
-MAX_WORKERS = 4
+MAX_WORKERS = 8
 PROJECT_ID = "dmt-discov-poc-prj-6258"
 LOCATION = "us-central1"
 MODEL_NAME = "gemini-2.5-flash"
@@ -210,8 +210,8 @@ def process_meeting(client, meeting_id, audio_data, step_s, output_path, max_wor
             results_map[t] = {"time": t, "pred": pred, "prob_p": prob}
             pbar.update(1)
 
-            # Save incrementally every 50 windows
-            if len(results_map) % 50 == 0:
+            # Save incrementally every 200 windows
+            if len(results_map) % 200 == 0:
                 _save_meeting(output_path, meeting_id, duration, step_s,
                               existing, results_map)
 
