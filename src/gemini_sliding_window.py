@@ -42,8 +42,8 @@ CONTEXT_BEFORE = 4.0
 CONTEXT_AFTER = 4.0
 MAX_WORKERS = 4
 PROJECT_ID = "dmt-discov-poc-prj-6258"
-LOCATION = "global"
-MODEL_NAME = "gemini-3.1-pro-preview"
+LOCATION = "us-central1"
+MODEL_NAME = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """You are an expert at analyzing if a speaker in a given conversation is having difficulties understanding or hearing at a given moment. Please consider the following factors:
 
@@ -66,7 +66,7 @@ SYSTEM_PROMPT = """You are an expert at analyzing if a speaker in a given conver
 
 Use all of the context available but make your judgement only on if the current moment (ie. the end of the audio) is a hearing difficulty event or not.
 
-Answer with "P" for POSITIVE meaning a hearing difficulty event or "N" for NEGATIVE meaning it isn't a hearing difficulty event, followed by a space and your confidence as a decimal between 0.0 and 1.0 (e.g. "P 0.92" or "N 0.85"). Do not include any other rationale or text in your response."""
+Answer only with "P" for POSITIVE meaning a hearing difficulty event or "N" for NEGATIVE meaning it isn't a hearing difficulty event. Do not include any other rationale or text in your response."""
 
 
 def get_client():
@@ -91,85 +91,62 @@ def extract_window(audio_data, center_time):
     return audio_data[start_sample:end_sample]
 
 
+def _make_request(client, wav_bytes):
+    """Make a single API request with logprobs."""
+    response = client.models.generate_content(
+        model=MODEL_NAME,
+        contents=[
+            types.Content(role="user", parts=[
+                types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
+                types.Part(text="Is the speaker having a hearing difficulty moment? Answer P or N only."),
+            ]),
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            max_output_tokens=1,
+            temperature=0,
+            response_logprobs=True,
+            logprobs=5,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
+
+    answer = (response.text or "").strip().upper()
+    prediction = 1 if answer == "P" else 0
+
+    prob_p = 0.5
+    lr = response.candidates[0].logprobs_result
+    if lr and lr.top_candidates:
+        log_p, log_n = None, None
+        for alt in lr.top_candidates[0].candidates:
+            tok = alt.token.strip().upper()
+            if tok == "P":
+                log_p = alt.log_probability
+            elif tok == "N":
+                log_n = alt.log_probability
+        if log_p is not None and log_n is not None:
+            max_log = max(log_p, log_n)
+            prob_p = math.exp(log_p - max_log) / (
+                math.exp(log_p - max_log) + math.exp(log_n - max_log)
+            )
+
+    return prediction, round(prob_p, 4)
+
+
 def classify_window(client, target_audio):
-    """Classify a single audio window using Gemini with self-reported confidence."""
+    """Classify a single audio window using Gemini with logprobs."""
     wav_bytes = audio_to_wav_bytes(target_audio)
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=[
-                types.Content(role="user", parts=[
-                    types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
-                    types.Part(text="Is the speaker having a hearing difficulty moment? Answer P or N with confidence."),
-                ]),
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=10,
-                temperature=0,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            ),
-        )
-
-        answer = (response.text or "").strip().upper()
-        parts = answer.split()
-        label = parts[0] if parts else "N"
-        prediction = 1 if label == "P" else 0
-
-        # Parse self-reported confidence
-        confidence = 0.5
-        if len(parts) >= 2:
-            try:
-                confidence = float(parts[1])
-                confidence = max(0.0, min(1.0, confidence))
-            except ValueError:
-                confidence = 0.5
-
-        # Convert to prob_p
-        if prediction == 1:
-            prob_p = confidence
-        else:
-            prob_p = 1.0 - confidence
-
-        return prediction, round(prob_p, 4)
-
+        return _make_request(client, wav_bytes)
     except Exception as e:
         err = str(e)
         if "429" in err or "RESOURCE_EXHAUSTED" in err:
-            # Rate limited — retry with exponential backoff
             for attempt in range(5):
-                wait = (2 ** attempt) * 2  # 2, 4, 8, 16, 32 seconds
+                wait = (2 ** attempt) * 2
                 time.sleep(wait)
                 try:
-                    response = client.models.generate_content(
-                        model=MODEL_NAME,
-                        contents=[
-                            types.Content(role="user", parts=[
-                                types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
-                                types.Part(text="Is the speaker having a hearing difficulty moment? Answer P or N with confidence."),
-                            ]),
-                        ],
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_PROMPT,
-                            max_output_tokens=10,
-                            temperature=0,
-                            thinking_config=types.ThinkingConfig(thinking_budget=0),
-                        ),
-                    )
-                    answer = (response.text or "").strip().upper()
-                    parts = answer.split()
-                    label = parts[0] if parts else "N"
-                    prediction = 1 if label == "P" else 0
-                    confidence = 0.5
-                    if len(parts) >= 2:
-                        try:
-                            confidence = float(parts[1])
-                            confidence = max(0.0, min(1.0, confidence))
-                        except ValueError:
-                            confidence = 0.5
-                    prob_p = confidence if prediction == 1 else 1.0 - confidence
-                    return prediction, round(prob_p, 4)
+                    return _make_request(client, wav_bytes)
                 except Exception:
                     continue
         print(f"    API error: {e}")
@@ -265,7 +242,7 @@ def _save_meeting(output_path, meeting_id, duration, step_s, existing, new_resul
 def main():
     parser = argparse.ArgumentParser(description="Gemini sliding window HDM classifier")
     parser.add_argument("--meeting", type=str, help="Process only this meeting ID")
-    parser.add_argument("--step", type=float, default=4.0, help="Step size in seconds")
+    parser.add_argument("--step", type=float, default=1.0, help="Step size in seconds")
     parser.add_argument("--workers", type=int, default=MAX_WORKERS, help="Max parallel API calls")
     args = parser.parse_args()
 
