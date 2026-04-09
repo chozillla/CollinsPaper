@@ -91,8 +91,8 @@ The raw prob_p signal is noisy (varies frame-to-frame). The dashboard
 
 1. **Spike removal**: Windows where pred != P but prob_p > 0.8 are replaced
    with the median of their neighbors (contradictory logprob artifacts)
-2. **Gaussian smoothing**: sigma=5.0 (15-point kernel) applied to produce
-   the smooth curve matching the paper's Figure 1
+2. **Gaussian smoothing**: sigma=1.0 (light smoothing) applied to produce
+   a smooth curve while preserving peaks above the 0.97 threshold, matching the paper's Figure 1
 
 Raw data in JSON files is unsmoothed. Smoothing is display-only.
 
