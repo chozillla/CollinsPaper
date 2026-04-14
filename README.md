@@ -26,50 +26,29 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 
 ```mermaid
 flowchart TB
-    AMI[("AMI Meeting Corpus\n75 meetings · 16kHz WAV")]
-    XML[("XML Dialogue Act Annotations")]
-
-    AMI --> PARSE
-    XML --> PARSE
-
-    PARSE["Parse AMI Annotations\n2,560 comment-about-understanding tags"]
-
-    PARSE --> FILTER
-
-    FILTER["3-Tier Keyword Filter\nstrong keywords · explicit non-understanding · partial cues"]
-
-    FILTER --> DATASET
-
-    DATASET["HDM Dataset\n149 positive HDMs · 1,490 negative segments · 75 meetings"]
-
-    DATASET --> WINDOW
-    AMI --> WINDOW
-
-    WINDOW["Gemini 2.5 Flash — Sliding Window\n12s audio clips (4s context + 4s target + 4s after)\n4s step size · 10-shot prompting · Vertex AI"]
-
-    WINDOW --> LOGPROB
-
-    LOGPROB["Extract Token Logprobs\nsoftmax(log P, log N) per window"]
-
-    LOGPROB --> SIGNAL
-
-    SIGNAL["Continuous P(HDM) Signal\nprobability 0–1 at every 4s across the meeting"]
-
-    SIGNAL --> HUMAN
+    AMI(("AMI Corpus\n75 meetings")) --> PARSE["Parse XML annotations"]
+    PARSE --> FILTER["Keyword filter → 149 HDMs"]
+    FILTER --> DATASET["Dataset: 149 HDMs + 1,490 negatives"]
+    DATASET --> GEMINI["Gemini 2.5 Flash sliding window\n10-shot · Vertex AI logprobs"]
+    AMI --> GEMINI
+    GEMINI --> SIGNAL["P(HDM) signal: 0–1 every 4s"]
+    SIGNAL --> HUMAN["Human listens + AI signal as guide"]
     AMI --> HUMAN
-
-    HUMAN["Human Labeling Pipeline\nAnnotator listens to full audio with AI signal as reference"]
-
-    HUMAN --> TYPEA
-    HUMAN --> TYPEB
-
-    TYPEA["Type A — Acoustic\nlistener misheard the audio"]
-    TYPEB["Type B — Comprehension\nlistener heard but didn't understand"]
-
-    TYPEA --> LABELS
+    HUMAN --> TYPEA["Type A: Acoustic"]
+    HUMAN --> TYPEB["Type B: Comprehension"]
+    TYPEA --> LABELS["Final typed HDM labels"]
     TYPEB --> LABELS
 
-    LABELS["Final Human-Verified HDM Labels\ntyped (A/B) · timestamped · per labeler"]
+    style AMI fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style PARSE fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style FILTER fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style DATASET fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style GEMINI fill:#d1fae5,stroke:#10b981,color:#064e3b
+    style SIGNAL fill:#d1fae5,stroke:#10b981,color:#064e3b
+    style HUMAN fill:#fce7f3,stroke:#ec4899,color:#831843
+    style TYPEA fill:#fee2e2,stroke:#ef4444,color:#7f1d1d
+    style TYPEB fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
+    style LABELS fill:#f3f4f6,stroke:#6b7280,color:#111827
 ```
 
 ---
