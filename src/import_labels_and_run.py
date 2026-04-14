@@ -107,34 +107,127 @@ def extract_window(audio, center_time):
 
 # ── Read spreadsheet ──────────────────────────────────────────────────
 
+def _parse_time_to_seconds(val):
+    """Convert a time value to seconds. Handles m:ss, mm:ss, mm:ss.ff, or raw seconds."""
+    s = str(val).strip()
+    if ":" in s:
+        parts = s.split(":")
+        try:
+            mins = float(parts[0])
+            secs = float(parts[1])
+            return round(mins * 60 + secs, 2)
+        except ValueError:
+            return None
+    try:
+        return round(float(s), 2)
+    except ValueError:
+        return None
+
+
 def read_spreadsheet(path, sheet=None):
-    """Read Excel or CSV into a list of {meeting_id, timestamp, type, note}."""
+    """Read Excel or CSV into a list of {meeting_id, timestamp, type, note}.
+
+    Supports two formats:
+      1. Per-meeting sheets: each Excel sheet is named with a meeting ID (e.g. "TS3005d"),
+         and rows have time + type columns. No meeting_id column needed.
+      2. Flat table: one sheet with meeting_id, timestamp, type columns (CSV or Excel).
+    """
     path = Path(path)
     if not path.exists():
         print(f"ERROR: File not found: {path}")
         return None
 
     ext = path.suffix.lower()
+
+    # CSV: always flat table format
     if ext == ".csv":
-        df = pd.read_csv(path)
-    elif ext in (".xlsx", ".xls"):
-        kwargs = {"sheet_name": sheet} if sheet else {}
-        df = pd.read_excel(path, **kwargs)
-    else:
+        return _read_flat_table(pd.read_csv(path))
+
+    if ext not in (".xlsx", ".xls"):
         print(f"ERROR: Unsupported format '{ext}'. Use .xlsx, .xls, or .csv")
         return None
 
+    # Excel: check if sheets are named as meeting IDs (per-meeting format)
+    xl = pd.ExcelFile(path)
+    sheet_names = xl.sheet_names
+
+    # Filter out instruction-like sheets
+    meeting_sheets = [s for s in sheet_names
+                      if s not in ("Instructions", "instructions", "Sheet1", "Sheet")
+                      and len(s) >= 5]  # meeting IDs are like ES2002b, TS3005d
+
+    if sheet:
+        # User specified a sheet — use flat table format
+        return _read_flat_table(pd.read_excel(path, sheet_name=sheet))
+
+    if meeting_sheets:
+        # Per-meeting sheet format: sheet name = meeting ID
+        labels = []
+        for sheet_name in meeting_sheets:
+            df = pd.read_excel(path, sheet_name=sheet_name, header=None)
+            labels.extend(_read_meeting_sheet(df, sheet_name))
+        if labels:
+            return labels
+
+    # Fallback: try first non-instruction sheet as flat table
+    for s in sheet_names:
+        if s.lower() != "instructions":
+            return _read_flat_table(pd.read_excel(path, sheet_name=s))
+
+    print("ERROR: No valid data found in spreadsheet")
+    return None
+
+
+def _read_meeting_sheet(df, meeting_id):
+    """Read a per-meeting sheet where the sheet name is the meeting ID.
+
+    Looks for rows with time + type data, skipping header/info rows.
+    """
+    labels = []
+    for _, row in df.iterrows():
+        vals = [str(v).strip() if pd.notna(v) else "" for v in row]
+        # Look for a row that has a parseable time and A or B
+        time_val = None
+        type_val = None
+        note_val = ""
+
+        for v in vals:
+            if time_val is None:
+                parsed = _parse_time_to_seconds(v)
+                if parsed is not None and parsed > 0:
+                    time_val = parsed
+                    continue
+            if type_val is None and v.upper() in ("A", "B"):
+                type_val = v.upper()
+                continue
+            if time_val is not None and type_val is not None and v:
+                note_val = v
+                break
+
+        if time_val is not None and type_val is not None:
+            labels.append({
+                "meeting_id": meeting_id,
+                "time": time_val,
+                "type": type_val,
+                "note": note_val,
+            })
+
+    return labels
+
+
+def _read_flat_table(df):
+    """Read a flat table with meeting_id, timestamp, type columns."""
     # Normalize column names — flexible matching
     col_map = {}
     for col in df.columns:
-        lower = str(col).strip().lower().replace(" ", "_")
+        lower = str(col).strip().lower().replace(" ", "_").replace("\n", "_")
         if "meeting" in lower or lower == "id":
             col_map[col] = "meeting_id"
         elif "time" in lower or lower == "timestamp" or lower == "ts":
             col_map[col] = "timestamp"
-        elif lower in ("type", "hdm_type", "label", "category"):
+        elif lower in ("type", "hdm_type", "label", "category") or "type" in lower:
             col_map[col] = "type"
-        elif "note" in lower or "comment" in lower:
+        elif "note" in lower or "comment" in lower or "hear" in lower:
             col_map[col] = "note"
 
     df = df.rename(columns=col_map)
@@ -146,19 +239,18 @@ def read_spreadsheet(path, sheet=None):
         print(f"  Found columns: {list(df.columns)}")
         print(f"\n  Expected columns (flexible naming):")
         print(f"    meeting_id  — meeting ID (e.g. 'ES2002b')")
-        print(f"    timestamp   — seconds into meeting (e.g. 19.66)")
+        print(f"    timestamp   — seconds or m:ss into meeting")
         print(f"    type        — 'A' or 'B'")
         print(f"    note        — (optional) annotator comment")
         return None
 
-    # Clean and validate
+    # Parse timestamps (handles both m:ss and raw seconds)
+    df["timestamp"] = df["timestamp"].apply(_parse_time_to_seconds)
     df["meeting_id"] = df["meeting_id"].astype(str).str.strip()
-    df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce")
     df["type"] = df["type"].astype(str).str.strip().str.upper()
 
-    # Drop rows with invalid data
     before = len(df)
-    df = df.dropna(subset=["meeting_id", "timestamp"])
+    df = df.dropna(subset=["timestamp"])
     df = df[df["type"].isin(["A", "B"])]
     after = len(df)
     if after < before:
