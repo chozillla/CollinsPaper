@@ -41,12 +41,6 @@ This project replicates and extends their work on the AMI Meeting Corpus using *
 
 8. **Human Labeling Tool** (`labeling_tool.py`) — Web-based tool for manual HDM verification with audio playback.
 
-### Scaffolded (code written, not run to completion)
-
-- **Wav2Vec 2.0 Transfer Learning** (`wav2vec_classifier.py`) — Fine-tuned wav2vec2-base-960h classifier, following the paper's Method 2.
-- **Audio LM Prompting** (`audio_lm_prompting.py`) — Whisper transcription + LLM classification, replicating the paper's Method 3.
-- **Gemini Audio Classifier** (`gemini_audio_classifier.py`) — Direct Gemini classification on individual segments.
-
 ---
 
 ## Setup
