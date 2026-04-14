@@ -24,6 +24,7 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from collections import defaultdict
+from scipy.integrate import trapezoid
 
 ROOT = Path(__file__).parent.parent
 AUDIO_DIR = ROOT / "data" / "audio"
@@ -60,6 +61,46 @@ def smooth_sliding_window(data, sigma=0.5):
         w["prob_p"] = round(float(smoothed[i]), 4)
     data["windows"] = windows
     return data
+
+
+def compute_alignment_score(sw_path, hdm_regions):
+    """Compute alignment score between model signal and ground truth HDMs."""
+    with open(sw_path) as f:
+        data = json.load(f)
+    windows = data["windows"]
+    times = np.array([w["time"] for w in windows])
+    probs = np.array([w["prob_p"] for w in windows])
+    duration = data["duration"]
+
+    gt = np.zeros_like(probs)
+    for h in hdm_regions:
+        mask = (times >= h["start"] - 4.0) & (times <= h["end"] + 4.0)
+        gt[mask] = 1.0
+
+    nabc = trapezoid(np.abs(probs - gt), times) / duration
+
+    peaks_at_hdm = []
+    for h in hdm_regions:
+        nearby = probs[(times >= h["start"] - 6.0) & (times <= h["end"] + 6.0)]
+        if len(nearby) > 0:
+            peaks_at_hdm.append(float(nearby.max()))
+    peak_at_hdm = np.mean(peaks_at_hdm) if peaks_at_hdm else 0.0
+
+    non_hdm_probs = probs[gt == 0]
+    noise_floor = float(non_hdm_probs.mean()) if len(non_hdm_probs) > 0 else 0.0
+    false_alarm_rate = float((non_hdm_probs > 0.5).sum()) / max(len(non_hdm_probs), 1) if len(non_hdm_probs) > 0 else 0.0
+
+    detection_score = peak_at_hdm
+    specificity_score = 1.0 - min(noise_floor / 0.5, 1.0)
+    alignment_score = round(100.0 * (0.5 * detection_score + 0.5 * specificity_score), 1)
+
+    return {
+        "alignment_score": alignment_score,
+        "nabc": round(nabc, 4),
+        "peak_at_hdm": round(peak_at_hdm, 3),
+        "noise_floor": round(noise_floor, 3),
+        "false_alarm_rate": round(false_alarm_rate * 100, 1),
+    }
 
 
 def load_data():
@@ -108,20 +149,38 @@ def load_data():
         if not ap.exists():
             continue
         # Only show meetings with 10-shot sliding window results
-        if not (RESULTS_DIR / "sliding_window_10shot" / f"{mid}.json").exists():
+        sw_path = RESULTS_DIR / "sliding_window_10shot" / f"{mid}.json"
+        if not sw_path.exists():
             continue
         n_hdms = len(data["hdm_regions"])
         if n_hdms == 0:
             continue
         info = sf.info(str(ap))
         data["hdm_regions"].sort(key=lambda x: x["start"])
+
+        # Compute alignment score
+        score_info = compute_alignment_score(sw_path, data["hdm_regions"])
+
+        # AMI corpus metadata from meeting ID
+        site_map = {"E": "Edinburgh", "I": "Idiap", "T": "TNO"}
+        session_map = {"a": "Kick-off", "b": "Functional", "c": "Conceptual", "d": "Detailed"}
+        site = site_map.get(mid[0], mid[0])
+        group = mid[:-1]
+        session = mid[-1]
+        phase = session_map.get(session, session)
+
         meeting_list.append({
             "id": mid, "duration": round(info.duration, 2),
             "n_pos": n_hdms,
+            "site": site,
+            "group": group,
+            "session": session,
+            "phase": phase,
+            **score_info,
         })
         meeting_details[mid] = data
 
-    meeting_list.sort(key=lambda x: -x["n_pos"])
+    meeting_list.sort(key=lambda x: -x["alignment_score"])
     print(f"Loaded {len(meeting_list)} meetings (Gemini 10-shot)")
 
 
@@ -184,10 +243,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .stat-card .val.muted { color: #999; }
 .stat-card .lbl { font-size: 9px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
 
+.sort-bar { display: flex; gap: 6px; padding: 8px 20px; justify-content: center; align-items: center; background: #fff; border-bottom: 1px solid #e0e0e0; }
+.sort-bar label { font-size: 11px; color: #888; font-weight: 600; }
+.sort-btn { padding: 4px 12px; background: #f8f9fa; border: 1px solid #dee2e6; color: #495057; border-radius: 5px; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.sort-btn:hover { background: #e9ecef; }
+.sort-btn.active { background: #2c3e50; border-color: #2c3e50; color: #fff; }
+
 .nav-bar { display: flex; gap: 4px; padding: 10px 20px; flex-wrap: wrap; justify-content: center; background: #fff; border-bottom: 1px solid #e0e0e0; }
-.nav-btn { padding: 5px 12px; background: #f8f9fa; border: 1px solid #dee2e6; color: #495057; border-radius: 5px; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.nav-btn { padding: 5px 10px; background: #f8f9fa; border: 1px solid #dee2e6; color: #495057; border-radius: 5px; cursor: pointer; font-size: 11px; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 80px; }
 .nav-btn:hover { background: #e9ecef; }
 .nav-btn.active { background: #1a9641; border-color: #1a9641; color: #fff; }
+.nav-btn .nav-score { font-size: 9px; font-weight: 700; }
+.nav-btn .nav-score.excellent { color: #1a9641; }
+.nav-btn .nav-score.good { color: #3498db; }
+.nav-btn .nav-score.fair { color: #f39c12; }
+.nav-btn .nav-score.poor { color: #e74c3c; }
+.nav-btn.active .nav-score { color: #fff; }
 
 .content { max-width: 1200px; margin: 15px auto; padding: 0 15px; }
 
@@ -198,37 +269,66 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 #chart { width: 100%; height: 550px; }
 
 #chart-wrapper { position: relative; }
-#seekbar {
-  position: absolute; bottom: 32px; left: 60px;
-  width: calc(100% - 120px); height: 28px; z-index: 10;
-  cursor: pointer; opacity: 0.15; transition: opacity 0.2s;
-  margin: 0; padding: 0;
-  -webkit-appearance: none; appearance: none; background: transparent;
+#playback-cursor {
+  position: absolute; top: 0; bottom: 0; width: 3px;
+  background: rgba(231,76,60,0.9); pointer-events: none;
+  z-index: 10; display: none;
+  box-shadow: 0 0 6px rgba(231,76,60,0.4);
 }
-#chart-wrapper:hover #seekbar { opacity: 0.9; }
-#seekbar::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none;
-  width: 14px; height: 28px; background: rgba(231,76,60,0.85);
-  border-radius: 3px; cursor: grab; border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+#playback-cursor::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #e74c3c; border: 2px solid #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
 }
-#seekbar::-moz-range-thumb {
-  width: 14px; height: 28px; background: rgba(231,76,60,0.85);
-  border-radius: 3px; cursor: grab; border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-}
-#seekbar::-webkit-slider-runnable-track { height: 4px; background: rgba(231,76,60,0.2); border-radius: 2px; }
-#seekbar::-moz-range-track { height: 4px; background: rgba(231,76,60,0.2); border-radius: 2px; }
 
-.chart-controls {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 15px; border-top: 1px solid #f0f0f0; background: #fafafa;
+/* --- Transport Controls --- */
+.transport {
+  background: #f8f9fa; padding: 0; margin: 0;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
 }
+.transport-inner {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 8px 15px 10px;
+}
+.ctrl-btn {
+  width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #e9ecef; color: #495057; font-size: 12px; font-weight: 700;
+  transition: all 0.12s; flex-shrink: 0;
+}
+.ctrl-btn:hover { background: #dee2e6; }
+.ctrl-btn.primary {
+  width: 40px; height: 40px; background: #1a9641; color: #fff; font-size: 17px;
+}
+.ctrl-btn.primary:hover { background: #158a38; }
+.ctrl-btn.primary.playing { background: #e74c3c; }
+.ctrl-btn.primary.playing:hover { background: #c0392b; }
+
+.time-display {
+  font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #555;
+  white-space: nowrap; min-width: 100px; text-align: center;
+}
+.time-elapsed { color: #2c3e50; font-weight: 600; }
+.time-remaining { color: #999; font-size: 11px; }
+.speed-select {
+  padding: 3px 6px; border-radius: 5px; border: 1px solid #dee2e6;
+  font-size: 11px; font-weight: 600; color: #495057; background: #f8f9fa;
+  cursor: pointer; flex-shrink: 0;
+}
+.speed-select:hover { border-color: #adb5bd; }
+.kbd-hints {
+  font-size: 9px; color: #bbb;
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+.kbd { display: inline-block; padding: 1px 4px; background: #e9ecef; border-radius: 3px;
+       font-family: 'SF Mono', monospace; font-size: 8px; color: #666; border: 1px solid #dee2e6; }
 
 .audio-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 12px 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 .play-btn { padding: 8px 20px; background: #1a9641; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; min-width: 70px; }
 .play-btn:hover { background: #158a38; }
-.time-display { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: #666; }
 .audio-hint { font-size: 11px; color: #aaa; margin-left: auto; }
 
 .events-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
@@ -286,8 +386,36 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="stat-card"><div class="val muted">0.87</div><div class="lbl">Paper F1</div></div>
   <div class="stat-card"><div class="val" id="s-meetings">-</div><div class="lbl">Meetings</div></div>
   <div class="stat-card"><div class="val" id="s-hdms">-</div><div class="lbl">HDMs</div></div>
+  <div class="stat-card"><div class="val" id="s-avg-score">-</div><div class="lbl">Avg Score</div></div>
+  <div class="stat-card"><div class="val" id="s-detected">-</div><div class="lbl">Detected</div></div>
 </div>
 
+<div class="sort-bar">
+  <label>Sort:</label>
+  <button class="sort-btn active" id="sort-score" onclick="sortMeetings('score')">Score</button>
+  <button class="sort-btn" id="sort-name" onclick="sortMeetings('name')">Name</button>
+  <button class="sort-btn" id="sort-hdms" onclick="sortMeetings('hdms')">HDMs</button>
+  <button class="sort-btn" id="sort-duration" onclick="sortMeetings('duration')">Duration</button>
+  <span style="margin:0 6px;color:#ccc;">|</span>
+  <label>Filter:</label>
+  <select class="sort-btn" id="filter-site" onchange="filterMeetings()" style="padding:4px 8px;cursor:pointer;">
+    <option value="">All Sites</option>
+    <option value="Edinburgh">Edinburgh</option>
+    <option value="Idiap">Idiap</option>
+    <option value="TNO">TNO</option>
+  </select>
+  <select class="sort-btn" id="filter-phase" onchange="filterMeetings()" style="padding:4px 8px;cursor:pointer;">
+    <option value="">All Phases</option>
+    <option value="a">a — Kick-off</option>
+    <option value="b">b — Functional</option>
+    <option value="c">c — Conceptual</option>
+    <option value="d">d — Detailed</option>
+  </select>
+  <select class="sort-btn" id="filter-group" onchange="filterMeetings()" style="padding:4px 8px;cursor:pointer;">
+    <option value="">All Groups</option>
+  </select>
+  <span style="margin-left:8px;font-size:10px;color:#aaa;" id="sort-info"></span>
+</div>
 <div class="nav-bar" id="nav"></div>
 
 <div class="content">
@@ -298,22 +426,33 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
     <div id="chart-wrapper" style="position:relative;">
       <div id="chart"><div class="loading">Loading...</div></div>
-      <input type="range" id="seekbar" min="0" max="1000" value="0" step="1">
+      <div id="playback-cursor"></div>
     </div>
-    <div class="chart-controls">
-      <button class="play-btn" id="play-btn" onclick="togglePlay()">Play</button>
-      <button class="play-btn" style="background:#6c757d;min-width:36px;padding:6px 10px" onclick="skipAudio(-5)">-5s</button>
-      <button class="play-btn" style="background:#6c757d;min-width:36px;padding:6px 10px" onclick="skipAudio(5)">+5s</button>
-      <audio id="audio" preload="none"></audio>
-      <div class="time-display" id="time-display">0:00 / 0:00</div>
-      <select id="speed" onchange="audio.playbackRate=parseFloat(this.value)" style="padding:2px 4px;border-radius:4px;border:1px solid #ccc;font-size:11px;">
-        <option value="0.5">0.5x</option>
-        <option value="0.75">0.75x</option>
-        <option value="1" selected>1x</option>
-        <option value="1.5">1.5x</option>
-        <option value="2">2x</option>
-      </select>
-      <div style="font-size:10px;color:#aaa;margin-left:auto;">Space = play/pause | Arrows = skip 5s | Drag slider to seek</div>
+    <div class="transport">
+      <div class="transport-inner">
+        <button class="ctrl-btn" onclick="skipAudio(-10)" title="Back 10s">&#9668;&#9668;</button>
+        <button class="ctrl-btn" onclick="skipAudio(-5)" title="Back 5s">&#9668;</button>
+        <button class="ctrl-btn primary" id="play-btn" onclick="togglePlay()" title="Play/Pause">&#9654;</button>
+        <button class="ctrl-btn" onclick="skipAudio(5)" title="Forward 5s">&#9658;</button>
+        <button class="ctrl-btn" onclick="skipAudio(10)" title="Forward 10s">&#9658;&#9658;</button>
+        <audio id="audio" preload="none"></audio>
+        <div class="time-display" id="time-display">
+          <span class="time-elapsed">0:00</span> <span class="time-remaining">/ 0:00</span>
+        </div>
+        <select class="speed-select" id="speed" onchange="audio.playbackRate=parseFloat(this.value)">
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="1" selected>1.0x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2.0x</option>
+        </select>
+        <div class="kbd-hints">
+          <span><kbd class="kbd">Space</kbd></span>
+          <span><kbd class="kbd">&larr;&rarr;</kbd></span>
+          <span><kbd class="kbd">J K L</kbd></span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -359,11 +498,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-let meetings = [];
+let allMeetings = [];  // unfiltered master list
+let meetings = [];     // filtered + sorted view
 let currentMid = null;
 let audio = document.getElementById('audio');
 let cursorInterval = null;
 let clipCache = {};
+let currentSort = 'score';
 
 function fmtTime(s) {
   if (!s || isNaN(s)) return '0:00';
@@ -371,18 +512,90 @@ function fmtTime(s) {
   return m + ':' + (sec < 10 ? '0' : '') + sec;
 }
 
-async function init() {
-  const r = await fetch('/api/meetings');
-  meetings = await r.json();
+function scoreGrade(s) {
+  if (s >= 80) return 'excellent';
+  if (s >= 60) return 'good';
+  if (s >= 40) return 'fair';
+  return 'poor';
+}
+
+function siteTag(site) {
+  const colors = {Edinburgh: '#2980b9', Idiap: '#8e44ad', TNO: '#e67e22'};
+  return '<span style="font-size:8px;padding:1px 4px;border-radius:3px;color:#fff;background:' +
+    (colors[site]||'#888') + '">' + (site||'?').substring(0,3) + '</span>';
+}
+
+function renderNav() {
   const nav = document.getElementById('nav');
-  meetings.forEach((m, i) => {
+  nav.innerHTML = '';
+  meetings.forEach((m) => {
     const btn = document.createElement('button');
-    btn.className = 'nav-btn';
-    btn.textContent = m.id + ' (' + m.n_pos + ')';
+    btn.className = 'nav-btn' + (m.id === currentMid ? ' active' : '');
+    const score = m.alignment_score || 0;
+    const grade = scoreGrade(score);
+    btn.innerHTML = '<span style="display:flex;align-items:center;gap:3px;">' + siteTag(m.site) +
+      ' ' + m.id + '</span><span class="nav-score ' + grade + '">' + score.toFixed(0) +
+      ' <span style="font-weight:400;opacity:0.7">' + (m.phase||'') + '</span></span>';
     btn.onclick = () => selectMeeting(m.id);
     btn.id = 'btn-' + m.id;
     nav.appendChild(btn);
   });
+  const scores = meetings.map(m => m.alignment_score || 0);
+  const avg = scores.length ? (scores.reduce((a,b) => a+b, 0) / scores.length) : 0;
+  document.getElementById('sort-info').textContent =
+    meetings.length + '/' + allMeetings.length + ' meetings | avg score: ' + avg.toFixed(1);
+}
+
+function applySort() {
+  if (currentSort === 'score') meetings.sort((a, b) => (b.alignment_score||0) - (a.alignment_score||0));
+  else if (currentSort === 'name') meetings.sort((a, b) => a.id.localeCompare(b.id));
+  else if (currentSort === 'hdms') meetings.sort((a, b) => b.n_pos - a.n_pos);
+  else if (currentSort === 'duration') meetings.sort((a, b) => b.duration - a.duration);
+}
+
+function sortMeetings(by) {
+  currentSort = by;
+  document.querySelectorAll('.sort-bar .sort-btn').forEach(b => {
+    if (b.id && b.id.startsWith('sort-')) b.classList.remove('active');
+  });
+  document.getElementById('sort-' + by).classList.add('active');
+  applySort();
+  renderNav();
+}
+
+function filterMeetings() {
+  const site = document.getElementById('filter-site').value;
+  const phase = document.getElementById('filter-phase').value;
+  const group = document.getElementById('filter-group').value;
+  meetings = allMeetings.filter(m => {
+    if (site && m.site !== site) return false;
+    if (phase && m.session !== phase) return false;
+    if (group && m.group !== group) return false;
+    return true;
+  });
+  applySort();
+  renderNav();
+}
+
+function populateGroupFilter() {
+  const sel = document.getElementById('filter-group');
+  const groups = [...new Set(allMeetings.map(m => m.group))].sort();
+  groups.forEach(g => {
+    const count = allMeetings.filter(m => m.group === g).length;
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g + ' (' + count + ' sessions)';
+    sel.appendChild(opt);
+  });
+}
+
+async function init() {
+  const r = await fetch('/api/meetings');
+  allMeetings = await r.json();
+  meetings = [...allMeetings];
+  populateGroupFilter();
+  applySort();
+  renderNav();
   // Compute global stats
   const resp2 = await fetch('/api/global_stats');
   const gs = await resp2.json();
@@ -390,6 +603,11 @@ async function init() {
   document.getElementById('s-model').style.fontSize = '16px';
   document.getElementById('s-meetings').textContent = gs.n_meetings;
   document.getElementById('s-hdms').textContent = meetings.reduce((a, m) => a + m.n_pos, 0);
+  const scores = meetings.map(m => m.alignment_score || 0);
+  const avgScore = scores.reduce((a,b) => a+b, 0) / scores.length;
+  document.getElementById('s-avg-score').textContent = avgScore.toFixed(0);
+  const detected = meetings.filter(m => (m.peak_at_hdm||0) > 0.5).length;
+  document.getElementById('s-detected').textContent = detected + '/' + meetings.length;
 
   if (meetings.length > 0) selectMeeting(meetings[0].id);
 }
@@ -400,19 +618,34 @@ async function selectMeeting(mid) {
   const m = meetings.find(x => x.id === mid);
 
   // Update nav
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('btn-' + mid).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.remove('active');
+    // Restore score color when deactivated
+    const sc = b.querySelector('.nav-score');
+    if (sc) { const g = sc.getAttribute('data-grade'); if (g) sc.className = 'nav-score ' + g; }
+  });
+  const activeBtn = document.getElementById('btn-' + mid);
+  activeBtn.classList.add('active');
+  const activeSc = activeBtn.querySelector('.nav-score');
+  if (activeSc) { activeSc.setAttribute('data-grade', activeSc.className.replace('nav-score ','')); activeSc.className = 'nav-score'; }
 
   // Update stats
+  const score = m.alignment_score || 0;
+  const grade = scoreGrade(score);
+  const gradeLabel = grade.charAt(0).toUpperCase() + grade.slice(1);
   document.getElementById('chart-title').textContent = 'Audio Waveform vs. Model Prediction and Ground Truth \u2014 ' + mid;
   document.getElementById('chart-meta').textContent =
-    (m.duration / 60).toFixed(1) + ' min | ' + m.n_pos + ' ground truth HDMs';
+    'Score: ' + score.toFixed(0) + ' (' + gradeLabel + ') | ' +
+    (m.site||'') + ' | Group ' + (m.group||'') + ' | Session ' + (m.session||'').toUpperCase() + ' (' + (m.phase||'') + ') | ' +
+    (m.duration / 60).toFixed(1) + ' min | ' + m.n_pos + ' HDMs | ' +
+    'Peak: ' + (m.peak_at_hdm||0).toFixed(2) + ' | Noise: ' + (m.noise_floor||0).toFixed(3);
 
   // Load audio
   audio.pause();
   audio.src = '/audio/' + mid;
   audio.load();
-  document.getElementById('play-btn').textContent = 'Play';
+  document.getElementById('play-btn').innerHTML = '&#9654;';
+  document.getElementById('play-btn').classList.remove('playing');
 
   // Show loading
   document.getElementById('chart').innerHTML = '<div class="loading">Loading waveform...</div>';
@@ -436,7 +669,7 @@ async function selectMeeting(mid) {
 
   // Start cursor update
   if (cursorInterval) clearInterval(cursorInterval);
-  cursorInterval = setInterval(updateCursor, 200);
+  cursorInterval = setInterval(updateCursor, 50);
 }
 
 function buildChart(mid, m, wave, detail, sliding) {
@@ -481,20 +714,7 @@ function buildChart(mid, m, wave, detail, sliding) {
     });
   }
 
-  // 3. Playback cursor (vertical line, updated via relayout)
-  // Cursor trace index: 2 (waveform) + 1 (prob signal or 2 for fallback) + 0
-  traces.push({
-    x: [0, 0], y: [-10, 10],
-    type: 'scatter', mode: 'lines',
-    line: { color: 'rgba(231,76,60,0.95)', width: 3.5 },
-    name: 'Playback',
-    hoverinfo: 'skip',
-    yaxis: 'y',
-    showlegend: false,
-    legendrank: 999,
-  });
-
-  // 4. Dummy traces for legend
+  // 3. Dummy traces for legend
   traces.push({
     x: [null], y: [null], type: 'scatter', mode: 'lines',
     line: { color: 'rgba(255,50,50,0.7)', width: 10 },
@@ -637,47 +857,60 @@ function buildChart(mid, m, wave, detail, sliding) {
     }
   });
 
-  // Align seekbar to chart plot area after render
-  setTimeout(alignSeekbar, 200);
-  document.getElementById('chart').on('plotly_relayout', () => setTimeout(alignSeekbar, 50));
 }
 
-let seekbarDragging = false;
+function positionCursor() {
+  const cursor = document.getElementById('playback-cursor');
+  const chartEl = document.getElementById('chart');
+  if (!cursor || !chartEl || !chartEl._fullLayout || !audio) return;
+  const xaxis = chartEl._fullLayout.xaxis;
+  if (!xaxis) return;
+  const t = audio.currentTime;
+  const xRange = xaxis.range;
+  const frac = (t - xRange[0]) / (xRange[1] - xRange[0]);
+  if (frac < 0 || frac > 1) {
+    cursor.style.display = 'none';
+    return;
+  }
+  const px = xaxis._offset + frac * xaxis._length;
+  cursor.style.display = 'block';
+  cursor.style.left = px + 'px';
+}
 
 function updateCursor() {
   if (!audio || !audio.duration || !currentMid) return;
-  const t = audio.currentTime;
+
+  // Position the CSS cursor overlay (fast, no Plotly re-render)
+  positionCursor();
+
+  // Update time display
+  const elapsed = fmtTime(audio.currentTime);
+  const remaining = '-' + fmtTime(audio.duration - audio.currentTime);
+  document.getElementById('time-display').innerHTML =
+    '<span class="time-elapsed">' + elapsed + '</span> <span class="time-remaining">' + remaining + '</span>';
+
+  // Update play button state
+  const pb = document.getElementById('play-btn');
+  if (audio.paused) {
+    pb.innerHTML = '&#9654;';
+    pb.classList.remove('playing');
+  } else {
+    pb.innerHTML = '&#9646;&#9646;';
+    pb.classList.add('playing');
+  }
+
+  // Auto-scroll: if zoomed in and cursor goes past visible window
   const chartEl = document.getElementById('chart');
-
-  // Move the cursor trace
-  if (chartEl && chartEl.data) {
-    const cursorIdx = chartEl.data.findIndex(tr => tr.name === 'Playback');
-    if (cursorIdx >= 0) {
-      Plotly.restyle('chart', { x: [[t, t]] }, [cursorIdx]);
-    }
-  }
-
-  document.getElementById('time-display').textContent =
-    fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
-
-  // Sync seekbar
-  if (!seekbarDragging) {
-    const sb = document.getElementById('seekbar');
-    sb.value = (audio.currentTime / audio.duration) * 1000;
-  }
-
-  // Auto-scroll: if zoomed in and cursor goes past 80% of visible window, scroll forward
   if (chartEl && chartEl.layout && chartEl.layout.xaxis && chartEl.layout.xaxis.range) {
     const xRange = chartEl.layout.xaxis.range;
     const viewStart = xRange[0];
     const viewEnd = xRange[1];
     const viewDur = viewEnd - viewStart;
+    const t = audio.currentTime;
     const m = meetings.find(x => x.id === currentMid);
     const fullDur = m ? m.duration : audio.duration;
 
-    // Only auto-scroll if we're zoomed in (viewing less than 90% of full duration)
     if (viewDur < fullDur * 0.9 && !audio.paused) {
-      // If cursor past 75% of visible window, scroll to keep cursor at 25%
       if (t > viewStart + viewDur * 0.75) {
         const newStart = t - viewDur * 0.25;
         const newEnd = newStart + viewDur;
@@ -685,7 +918,6 @@ function updateCursor() {
           'xaxis.range': [Math.max(0, newStart), Math.min(fullDur, newEnd)]
         });
       }
-      // If cursor before visible window (e.g. user seeked backwards)
       if (t < viewStart) {
         const newStart = t - viewDur * 0.25;
         const newEnd = newStart + viewDur;
@@ -697,38 +929,15 @@ function updateCursor() {
   }
 }
 
-// Seekbar: overlay on chart, aligned to Plotly plot area
-function alignSeekbar() {
-  const chartEl = document.getElementById('chart');
-  const sb = document.getElementById('seekbar');
-  if (!chartEl || !chartEl._fullLayout) return;
-  const plotArea = chartEl._fullLayout._plots?.xy;
-  if (!plotArea) return;
-  // Get the plot area bounding box relative to chart div
-  const xaxis = chartEl._fullLayout.xaxis;
-  const l = xaxis._offset;
-  const w = xaxis._length;
-  sb.style.left = l + 'px';
-  sb.style.width = w + 'px';
-  sb.style.right = 'auto';
-}
-
+// Re-position cursor when chart is zoomed/panned
 (function() {
-  const sb = document.getElementById('seekbar');
-  sb.addEventListener('mousedown', () => { seekbarDragging = true; });
-  sb.addEventListener('touchstart', () => { seekbarDragging = true; });
-  sb.addEventListener('input', () => {
-    if (audio && audio.duration) {
-      audio.currentTime = (sb.value / 1000) * audio.duration;
+  setTimeout(() => {
+    const chartEl = document.getElementById('chart');
+    if (chartEl) {
+      chartEl.on('plotly_relayout', () => positionCursor());
     }
-  });
-  sb.addEventListener('mouseup', () => { seekbarDragging = false; });
-  sb.addEventListener('touchend', () => { seekbarDragging = false; });
-  sb.addEventListener('change', () => { seekbarDragging = false; });
+  }, 500);
 })();
-
-// Re-align seekbar when chart resizes or relayouts
-window.addEventListener('resize', () => setTimeout(alignSeekbar, 100));
 
 function skipAudio(sec) {
   if (!audio) return;
@@ -739,11 +948,10 @@ function togglePlay() {
   if (!audio || !audio.src) return;
   if (audio.paused) {
     audio.play();
-    document.getElementById('play-btn').textContent = 'Pause';
   } else {
     audio.pause();
-    document.getElementById('play-btn').textContent = 'Play';
   }
+  // Button state updated in updateCursor
 }
 
 function seekAudio(timeSec) {
@@ -1004,9 +1212,19 @@ function toggleSection(name) {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  // Ignore if user is typing in an input/select
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
-  if (e.code === 'ArrowRight' && audio) { audio.currentTime += 5; }
-  if (e.code === 'ArrowLeft' && audio) { audio.currentTime = Math.max(0, audio.currentTime - 5); }
+  if (e.code === 'ArrowRight') { e.preventDefault(); skipAudio(5); }
+  if (e.code === 'ArrowLeft') { e.preventDefault(); skipAudio(-5); }
+  if (e.code === 'KeyJ') { skipAudio(-10); }
+  if (e.code === 'KeyL') { skipAudio(10); }
+  if (e.code === 'KeyK') { if (audio && !audio.paused) audio.pause(); }
+  // Number keys 1-4 for speed
+  if (e.code === 'Digit1') { audio.playbackRate = 0.5; document.getElementById('speed').value = '0.5'; }
+  if (e.code === 'Digit2') { audio.playbackRate = 1; document.getElementById('speed').value = '1'; }
+  if (e.code === 'Digit3') { audio.playbackRate = 1.5; document.getElementById('speed').value = '1.5'; }
+  if (e.code === 'Digit4') { audio.playbackRate = 2; document.getElementById('speed').value = '2'; }
 });
 
 init();

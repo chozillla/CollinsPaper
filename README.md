@@ -149,19 +149,66 @@ Features:
 - **Green probability line** — continuous P(HDM) from Gemini sliding window
 - **Red shaded bands** — ground truth HDM events
 - **Orange dashed threshold** — decision boundary
-- **Audio playback** with scrubber, click-to-seek on chart, and speed control
+- **Audio playback** — click chart to seek, transport controls, keyboard shortcuts (Space, J/K/L, arrow keys)
 - **Per-HDM clip playback** — listen to individual events
-- **Few-shot examples panel** — audio for each P/N example used in prompting
+- **Alignment scores** — per-meeting composite score (0-100) combining detection and specificity
+- **Sort & filter** — sort by score/name/HDMs/duration, filter by recording site (Edinburgh/Idiap/TNO), session phase (a-d), or participant group
+- **AMI metadata** — each meeting shows site, group, session phase, and score grade
+
+### Signal Quality Evaluation
+
+```bash
+python src/evaluate_signal.py           # print summary table
+python src/evaluate_signal.py --plot    # generate plots (results/signal_evaluation.html)
+```
+
+Per-meeting metrics:
+- **Alignment Score** (0-100) — composite of detection + specificity (mean=74.3, 88% of meetings detected)
+- **Peak@HDM** — max model probability near true HDMs (mean=0.82)
+- **Noise Floor** — mean probability in non-HDM regions (mean=0.17)
+- **False Alarm Rate** — fraction of non-HDM windows above threshold (mean=10.2%)
+- **SNR** — signal-to-noise ratio (mean=7.5)
 
 ---
 
 ## Dataset: AMI Meeting Corpus
 
-The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) contains 100 hours of meeting recordings with dialogue act annotations.
+The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) contains 100 hours of meeting recordings with dialogue act annotations. The scenario meetings simulate teams of 4 people designing a TV remote control across multiple sessions.
 
 - **75 meetings** with audio, **1,639 total segments** (149 positive, 1,490 negative)
 - **5-fold Monte Carlo cross-validation** at the meeting level (80/20 split)
 - Audio: 16kHz mono WAV (headset mix channel)
+
+### Meeting Structure
+
+Each meeting ID encodes metadata: `ES2002b` = **E**dinburgh, **S**cenario, group **2002**, session **b**.
+
+**Recording Sites** (3 locations with different room acoustics):
+
+| Prefix | Site | Location | Meetings |
+|--------|------|----------|----------|
+| ES | Edinburgh | University of Edinburgh, UK | 26 |
+| IS | Idiap | Idiap Research Institute, Switzerland | 18 |
+| TS | TNO | TNO Human Factors, Netherlands | 31 |
+
+**Sessions** — Same 4 participants meet across 4 design phases:
+
+| Session | Phase | Description |
+|---------|-------|-------------|
+| a | Kick-off | Team introduction, getting acquainted with the task (~20 min avg) |
+| b | Functional design | User requirements, technical specs (~37 min avg) |
+| c | Conceptual design | Components, materials, UI concepts (~38 min avg) |
+| d | Detailed design | Final look-and-feel, evaluation (~35 min avg) |
+
+**Participant Roles** (same person plays the same role across all sessions):
+- **Project Manager (PM)** — runs meetings, keeps time/budget
+- **Marketing Expert (ME)** — user requirements, market trends
+- **User Interface Designer (UID)** — technical functions and UI
+- **Industrial Designer (ID)** — components and how it works
+
+**Group Numbers** — The numeric part (e.g. 2002) identifies a team. For example, ES2002a/b/c/d are the same 4 Edinburgh participants across all 4 phases. There are ~35 groups total, with most having 2-4 sessions containing HDMs.
+
+Most participants are **non-native English speakers**, which is relevant because accented speech may affect both HDM production and model detection accuracy.
 
 ---
 
@@ -176,6 +223,7 @@ src/
   dashboard.py                 # Trial results dashboard (HTML output)
   validation_dashboard.py      # Prediction browser with audio
   validation_audit.py          # Data leakage checks
+  evaluate_signal.py           # Signal quality evaluation (alignment scores, plots)
   evaluate_all.py              # Run all methods and generate summary table
   build_dataset.py             # Dataset construction
   filter_hdm.py                # HDM annotation filtering
@@ -191,6 +239,7 @@ results/
   sliding_window/              # Zero-shot Gemini P(HDM) per meeting (75 meetings)
   sliding_window_10shot/       # 10-shot Gemini P(HDM) per meeting (75 meetings)
   sliding_window_gemini31pro_backup/  # Gemini 3.1 Pro results backup (75 meetings)
+  signal_evaluation.html       # Signal quality evaluation plots
   gemini_10shot_results.json   # Gemini baseline results
   baseline_hotword.json        # Hotword baseline results
   random_baseline.json         # Random baseline results
