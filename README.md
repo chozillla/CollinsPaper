@@ -33,21 +33,21 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 
 ```mermaid
 flowchart TB
-    AMI(("AMI Corpus\n75 meetings · WAV audio")) --> PARSE["Parse XML annotations"]
-    PARSE --> CANDIDATES["HDM candidates (149)"]
-    AMI --> HUMAN["Humans listen to audio clips"]
+    AMI(("AMI Corpus\n75 meetings · WAV audio")) --> PARSE["Parse XML annotations\nfind dialogue acts tagged as 'comment about understanding'"]
+    PARSE --> CANDIDATES["149 HDM candidate moments"]
+    AMI --> HUMAN["Humans listen to each audio clip"]
     CANDIDATES --> HUMAN
-    HUMAN --> TYPEA["Type A: Acoustic — misheard"]
-    HUMAN --> TYPEB["Type B: Comprehension — didn't understand"]
-    TYPEA --> LABELS["Human HDM labels\n(training data)"]
+    HUMAN --> TYPEA["Type A: Acoustic\nlistener misheard what was said"]
+    HUMAN --> TYPEB["Type B: Comprehension\nlistener heard it but couldn't make sense of it"]
+    TYPEA --> LABELS["Human-verified HDM labels\nused as training data for the model"]
     TYPEB --> LABELS
-    LABELS --> SHOTS["Select 10-shot examples\n5 positive + 5 negative"]
-    AMI --> GEMINI["Gemini 2.5 Flash sliding window\nVertex AI logprobs"]
+    LABELS --> SHOTS["Pick 10-shot examples for the model\n5 real HDMs + 5 non-HDM clips"]
+    AMI --> GEMINI["Run Gemini 2.5 Flash on full meetings\nslides a 12s window across the audio"]
     SHOTS --> GEMINI
-    GEMINI --> SIGNAL["P(HDM) signal: 0–1 every 4s"]
-    SIGNAL --> CV["K-fold cross-validation\nheld-out meetings"]
+    GEMINI --> SIGNAL["Continuous HDM probability\n0 = no difficulty · 1 = difficulty detected"]
+    SIGNAL --> CV["Cross-validation\ntest on meetings the model hasn't seen"]
     LABELS --> CV
-    CV --> RESULT["Generalization metrics\ndetection rate · peak prob · FAR"]
+    CV --> RESULT["Does it generalize?\nhow often it catches real HDMs vs. false alarms"]
 
     style AMI fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
     style PARSE fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
