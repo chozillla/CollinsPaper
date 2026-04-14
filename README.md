@@ -24,6 +24,15 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 
 ## Pipeline Overview
 
+| Color | Stage |
+|-------|-------|
+| 🔵 Blue | Data ingestion — AMI corpus audio and annotations |
+| 🟡 Yellow | Filtering — keyword extraction and dataset construction |
+| 🟢 Green | AI classification — Gemini sliding window on Vertex AI |
+| 🩷 Pink | Human labeling — annotator review with AI signal as guide |
+| 🔴 Red / 🟣 Purple | HDM types — Type A (acoustic) / Type B (comprehension) |
+| ⚪ Gray | Output — final human-verified, typed labels |
+
 ```mermaid
 flowchart TB
     AMI(("AMI Corpus\n75 meetings")) --> PARSE["Parse XML annotations"]
