@@ -25,61 +25,51 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 ## Pipeline Overview
 
 ```mermaid
-flowchart TD
-    subgraph DATA["Data Ingestion"]
-        AMI["AMI Meeting Corpus\n100h meeting audio\n75 meetings"]
-        XML["XML Dialogue Act\nAnnotations"]
-    end
-
-    subgraph EXTRACT["HDM Extraction"]
-        PARSE["Parse Annotations\nparse_ami_annotations.py"]
-        FILTER["3-Tier Keyword Filter\nfilter_hdm.py"]
-        DATASET["Built Dataset\n149 HDMs + 1,490 negatives"]
-    end
-
-    subgraph CLASSIFY["AI Classification"]
-        BASELINE["Baselines\nHotword heuristic\nRandom classifiers"]
-        SLIDING["Sliding Window Classifier\nGemini 2.5 Flash · Vertex AI\n12s windows · 4s steps\nLogprob → P(HDM) signal"]
-    end
-
-    subgraph HUMAN["Human Labeling Pipeline"]
-        LISTEN["Annotator listens\nto full meeting audio"]
-        TYPEA["Type A — Acoustic\nMisheard the audio"]
-        TYPEB["Type B — Comprehension\nHeard but didn't understand"]
-        HLABELS["Human HDM Labels\nper labeler · per meeting"]
-    end
-
-    subgraph EVAL["Evaluation & Visualization"]
-        SIGNAL["Signal Quality Scoring\nAlignment · Peak · Noise · FAR"]
-        DASH["Waveform Dashboard\nAudio + P(HDM) + ground truth"]
-        COMPARE["Human vs AI\nLabel Comparison"]
-    end
+flowchart TB
+    AMI[("AMI Meeting Corpus\n75 meetings · 16kHz WAV")]
+    XML[("XML Dialogue Act Annotations")]
 
     AMI --> PARSE
     XML --> PARSE
+
+    PARSE["Parse AMI Annotations\n2,560 comment-about-understanding tags"]
+
     PARSE --> FILTER
+
+    FILTER["3-Tier Keyword Filter\nstrong keywords · explicit non-understanding · partial cues"]
+
     FILTER --> DATASET
 
-    DATASET --> BASELINE
-    DATASET --> SLIDING
-    AMI --> SLIDING
+    DATASET["HDM Dataset\n149 positive HDMs · 1,490 negative segments · 75 meetings"]
 
-    AMI --> LISTEN
-    SLIDING -.->|AI signal as reference| LISTEN
-    LISTEN --> TYPEA & TYPEB
-    TYPEA & TYPEB --> HLABELS
+    DATASET --> WINDOW
+    AMI --> WINDOW
 
-    SLIDING --> SIGNAL
-    SLIDING --> DASH
-    DATASET --> DASH
-    HLABELS --> COMPARE
-    SLIDING --> COMPARE
+    WINDOW["Gemini 2.5 Flash — Sliding Window\n12s audio clips (4s context + 4s target + 4s after)\n4s step size · 10-shot prompting · Vertex AI"]
 
-    style DATA fill:#f0f4ff,stroke:#7ba1d4
-    style EXTRACT fill:#fff8f0,stroke:#d4a87b
-    style CLASSIFY fill:#f0fff4,stroke:#7bd49a
-    style HUMAN fill:#fff0f0,stroke:#d47b7b
-    style EVAL fill:#f8f0ff,stroke:#a87bd4
+    WINDOW --> LOGPROB
+
+    LOGPROB["Extract Token Logprobs\nsoftmax(log P, log N) per window"]
+
+    LOGPROB --> SIGNAL
+
+    SIGNAL["Continuous P(HDM) Signal\nprobability 0–1 at every 4s across the meeting"]
+
+    SIGNAL --> HUMAN
+    AMI --> HUMAN
+
+    HUMAN["Human Labeling Pipeline\nAnnotator listens to full audio with AI signal as reference"]
+
+    HUMAN --> TYPEA
+    HUMAN --> TYPEB
+
+    TYPEA["Type A — Acoustic\nlistener misheard the audio"]
+    TYPEB["Type B — Comprehension\nlistener heard but didn't understand"]
+
+    TYPEA --> LABELS
+    TYPEB --> LABELS
+
+    LABELS["Final Human-Verified HDM Labels\ntyped (A/B) · timestamped · per labeler"]
 ```
 
 ---
