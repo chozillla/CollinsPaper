@@ -148,6 +148,17 @@ The 10-shot examples that drive the classifier must come from human judgment, no
 
 Multiple labelers are supported via `--labeler` flag for inter-annotator agreement. Labels are saved per-labeler per-meeting to `data/human_hdm_labels.json` and serve as training data for the classifier.
 
+Labels can also be imported from an **Excel or CSV spreadsheet** (`import_labels_and_run.py`) with four columns:
+
+| Column | Example | Description |
+|--------|---------|-------------|
+| `meeting_id` | ES2002b | AMI meeting ID |
+| `timestamp` | 19.66 | Seconds into the meeting |
+| `type` | A | A (acoustic) or B (comprehension) |
+| `note` | speaker overlap | Optional annotator comment |
+
+A template is provided at `data/label_template.csv`. The import script saves labels to the same `human_hdm_labels.json` format, then optionally runs Gemini 10-shot on all remaining meetings using those labels as training data.
+
 ### 6. Cross-Validation
 
 To verify that the human-labeled 10-shot examples generalize to unseen audio, we run K-fold cross-validation at the meeting level (`cross_validate_human_labels.py`):
@@ -212,6 +223,11 @@ python src/evaluate_signal.py --plot
 python src/human_labeling_pipeline.py --labeler alice
 # Open http://localhost:8770
 
+# Import labels from Excel/CSV and run Gemini on remaining meetings
+python src/import_labels_and_run.py data/labels.xlsx --labeler alice
+python src/import_labels_and_run.py data/labels.csv --import-only  # save labels only
+python src/import_labels_and_run.py data/labels.xlsx --dry-run     # preview
+
 # Cross-validate that human labels generalize
 python src/cross_validate_human_labels.py --labeler alice --folds 5
 python src/cross_validate_human_labels.py --dry-run   # preview splits only
@@ -238,6 +254,7 @@ src/
   validation_audit.py          # Data leakage audit
   labeling_tool.py             # Legacy AI-label verification tool (Yes/No per HDM)
   human_labeling_pipeline.py   # Human labeling pipeline — Type A/B markers (port 8770)
+  import_labels_and_run.py     # Import Excel/CSV labels → run Gemini 10-shot
   cross_validate_human_labels.py  # K-fold CV: do human 10-shot examples generalize?
 
 results/
@@ -253,10 +270,12 @@ data/
   hdm_filtered.json            # Filtered HDM set (149 positives)
   hdm_labels.json              # Legacy AI-label verification (yes/no)
   human_hdm_labels.json        # Human labels (Type A/B, per labeler) — training data
+  label_template.csv           # Template for Excel/CSV label import
   audio/                       # AMI WAV files (not tracked)
   dataset/                     # Built dataset + segments (not tracked)
 
 results/
+  human_labels_10shot/         # Gemini results using imported human labels as shots
   cross_validation/            # K-fold CV results (per-fold + summary)
 ```
 
