@@ -1,97 +1,128 @@
-# Replicating "Identifying Hearing Difficulty Moments in Conversational Audio"
+# Detecting Hearing Difficulty Moments in Meeting Audio
 
-Replication and extension of [Collins et al. (2025)](https://arxiv.org/abs/2507.23590) using the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/).
-
-**Gemini 2.5 Flash** on Vertex AI with token-level logprobs generates a continuous P(HDM) probability signal across entire meetings, matching the paper's Figure 1 visualization with interactive audio playback.
+A replication and extension of [Collins et al. (2025)](https://arxiv.org/abs/2507.23590) — using Gemini 2.5 Flash on Vertex AI to automatically detect moments when listeners struggle to understand what was said in the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/).
 
 ---
 
-## What is This Project About?
+## Background
 
-Collins et al. (2025) showed that AI models can automatically detect **Hearing Difficulty Moments (HDMs)** — moments when a listener struggles to understand what was said (e.g. "What?", "Huh?", "Sorry?"). Their best model (Gemini 1.5 Pro, 10-shot) achieved F1 = 0.87.
+**Hearing Difficulty Moments (HDMs)** are brief moments in conversation when a listener fails to understand what was said — signaled by responses like *"What?"*, *"Huh?"*, *"Sorry?"*, or *"Which was that?"*. Collins et al. (2025) demonstrated that large language models can detect these moments from audio alone, achieving F1 = 0.87 with Gemini 1.5 Pro using 10-shot prompting.
 
-This project replicates and extends their work on the AMI Meeting Corpus using **Gemini 2.5 Flash** with a sliding window approach to produce a continuous probability signal, and an interactive dashboard to explore the results with audio playback.
+This project replicates their approach on the full AMI Meeting Corpus and extends it with:
+
+- A **sliding window classifier** that produces a continuous P(HDM) probability signal across entire meetings (not just per-segment classification)
+- An **interactive waveform dashboard** with audio playback, recreating the paper's Figure 1 visualization
+- **Signal quality metrics** for evaluating detection accuracy per meeting
+
+---
+
+## The Data
+
+The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) is a well-known dataset of 100 hours of recorded meetings. In the scenario portion, teams of 4 people role-play designing a TV remote control across multiple sessions. Participants include a Project Manager, Marketing Expert, User Interface Designer, and Industrial Designer.
+
+Each meeting ID encodes its metadata — `ES2002b` means **E**dinburgh site, **S**cenario, group **2002**, session **b** (functional design). Recordings come from three sites (Edinburgh, Idiap in Switzerland, TNO in the Netherlands) with different room acoustics. Most participants are non-native English speakers, which is relevant since accented speech may affect both HDM frequency and model detection.
+
+**HDM extraction:** The AMI corpus includes dialogue act annotations with a `COMMENT-ABOUT-UNDERSTANDING` tag. We parsed the XML annotations and applied a three-tier keyword filter to identify **149 confirmed HDMs** across **75 meetings**. These range from simple *"Sorry?"* to more complex *"Which was that?"*. Each HDM is paired with 10x negative samples (non-HDM segments) for a total of **1,639 segments**.
+
+| | Count |
+|---|---|
+| Meetings with HDMs | 75 |
+| Positive segments (HDMs) | 149 |
+| Negative segments | 1,490 |
+| Total segments | 1,639 |
+
+Sessions follow four design phases:
+
+| Session | Phase | Avg Duration |
+|---------|-------|-------------|
+| a | Kick-off — team intros, task overview | ~20 min |
+| b | Functional design — requirements, specs | ~37 min |
+| c | Conceptual design — components, UI concepts | ~38 min |
+| d | Detailed design — final evaluation | ~35 min |
 
 ---
 
 ## What Has Been Done
 
-### Completed Work
+### 1. Sliding Window Classifier
 
-1. **Dataset Construction** — Parsed AMI Meeting Corpus XML annotations, identified 149 HDMs using a three-tier keyword filter on `COMMENT-ABOUT-UNDERSTANDING` tags, with 10x negative sampling (1,490 non-HDM segments) across 75 meetings.
+The core contribution. Gemini 2.5 Flash processes each meeting as a series of overlapping 12-second audio windows (4s context + 4s target + 4s after) at 4-second intervals. For each window, the model outputs a single "P" (positive) or "N" (negative) token. We extract the logprob for each token and compute:
 
-2. **Baseline Methods** (completed with results)
-   - **ASR Hotword Heuristic** (`baseline_hotword.py`) — keyword-matching baseline using common HDM phrases (`results/baseline_hotword.json`)
-   - **Random Baselines** (`random_baseline.py`) — random 50/50 and base-rate classifiers (`results/random_baseline.json`)
+```
+P(HDM) = softmax(logprob_P, logprob_N)
+```
 
-3. **Gemini 2.5 Flash 10-Shot Sliding Window** (`gemini_sliding_window.py`) — The main contribution. Runs Gemini 2.5 Flash on Vertex AI with logprobs across entire meetings in 12s windows (4s context + 4s target + 4s after) at 4s step intervals. Produces a continuous P(HDM) probability signal from softmax over "P"/"N" token logprobs, using 10-shot prompting (5P + 5N examples).
-   - **10-shot results**: All 75 meetings completed (`results/sliding_window_10shot/`)
-   - **Zero-shot results**: All 75 meetings completed (`results/sliding_window/`)
-   - **Gemini 3.1 Pro backup**: 75 meetings (`results/sliding_window_gemini31pro_backup/`)
+This produces a continuous 0-1 probability signal across the entire meeting — not just a binary label per segment. Vertex AI is required because the standard Gemini API does not support token-level logprobs.
 
-4. **Signal Quality Evaluation** (`evaluate_signal.py`) — Per-meeting alignment scoring (0-100) measuring detection accuracy and specificity. 88% of meetings have HDMs detected (Peak > 0.5), with mean alignment score of 74.3.
+**Results completed:**
+- 10-shot (5P + 5N examples): all 75 meetings
+- Zero-shot: all 75 meetings
+- Gemini 3.1 Pro backup: all 75 meetings
 
-5. **Interactive Waveform Dashboard** (`waveform_dashboard.py`) — The main visualization tool, recreating Collins et al. Figure 1 with full audio playback. Features blue waveform, green probability line, red HDM bands, orange threshold, click-to-seek, transport controls, per-HDM clip playback, alignment scores, and AMI metadata filters (site/phase/group).
+### 2. Baseline Methods
 
-6. **Static Figure 1 Dashboard** (`figure1_dashboard.py`) — Generates a static Plotly HTML for the same visualization without audio.
+- **ASR Hotword Heuristic** — keyword matching on common HDM phrases
+- **Random Baselines** — 50/50 coin flip and base-rate classifiers
 
-7. **Validation & Auditing**
-    - **Validation Dashboard** (`validation_dashboard.py`) — Prediction browser with audio
-    - **Validation Audit** (`validation_audit.py`) — Data leakage checks
+### 3. Signal Quality Evaluation
 
-8. **Human Labeling Tool** (`labeling_tool.py`) — Web-based tool for manual HDM verification with audio playback.
+Per-meeting scoring (0-100) combining detection accuracy and specificity:
+
+| Metric | Mean |
+|--------|------|
+| Alignment Score | 74.3 |
+| Peak probability near HDMs | 0.82 |
+| Noise floor (non-HDM regions) | 0.17 |
+| False alarm rate | 10.2% |
+| Signal-to-noise ratio | 7.5 |
+
+88% of meetings have their HDMs detected (peak P(HDM) > 0.5).
+
+### 4. Interactive Dashboard
+
+A waveform dashboard (`waveform_dashboard.py`, port 8766) recreating Collins et al. Figure 1 with full audio playback:
+
+- Blue waveform with green P(HDM) probability overlay
+- Red bands marking ground-truth HDM events
+- Click-to-seek audio playback with keyboard shortcuts
+- Per-HDM clip playback for individual events
+- Sort and filter by alignment score, recording site, session phase, or participant group
+
+### 5. Validation
+
+- **Data leakage audit** — 8-point check confirming no train/test contamination across 5-fold Monte Carlo cross-validation (see `VALIDATION.md`)
+- **Prediction browser** — manual inspection of every classification with audio
+- **Human labeling tool** — web-based manual HDM verification
 
 ---
 
-## Setup
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.12
-- Google Cloud account with Vertex AI API enabled (for Gemini sliding window)
-- AMI Meeting Corpus audio files (16kHz mono WAV)
+- Python 3.12+
+- Google Cloud account with Vertex AI API enabled
+- AMI Meeting Corpus audio (16kHz mono WAV)
 
-### Installation
+### Install
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install google-genai numpy soundfile tqdm python-dotenv scikit-learn plotly torch transformers
 ```
 
-### Vertex AI Authentication
+### Authenticate with Vertex AI
 
-Vertex AI is required for token-level logprobs — the standard Gemini API (Google AI Studio) does not support them.
+Vertex AI is required for logprobs — the standard Gemini API doesn't support them.
 
-1. Install the Google Cloud CLI:
 ```bash
-curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
-tar -xf google-cloud-cli-linux-x86_64.tar.gz
-./google-cloud-sdk/install.sh --quiet
+gcloud auth application-default login --project <YOUR_PROJECT_ID>
 ```
 
-2. Authenticate:
-```bash
-./google-cloud-sdk/bin/gcloud auth application-default login --project <YOUR_PROJECT_ID>
-```
-
-3. Ensure the Vertex AI API is enabled on your GCP project.
-
-### Environment Variables
+### Run
 
 ```bash
-# .env file
-GEMINI_API_KEY=...  # For Gemini baseline (Google AI Studio)
-# Vertex AI auth handled via gcloud credentials
-```
-
----
-
-## Usage
-
-### Running the Sliding Window Classifier
-
-```bash
-# All meetings, 10-shot (default)
+# Run the sliding window classifier (all meetings, 10-shot)
 python src/gemini_sliding_window.py
 
 # Single meeting
@@ -100,109 +131,13 @@ python src/gemini_sliding_window.py --meeting ES2003b
 # Zero-shot mode
 python src/gemini_sliding_window.py --shots 0
 
-# Custom step size and parallelism
-python src/gemini_sliding_window.py --step 2 --workers 15
-```
-
-The classifier:
-- Extracts 12s audio windows (4s context + 4s target + 4s after) at regular intervals
-- Sends each window to Gemini 2.5 Flash with the paper's HDM detection prompt
-- Extracts P(HDM) from the logprob distribution over "P" and "N" tokens
-- Saves results incrementally per meeting — automatically resumes if interrupted
-
-### How Logprobs Work
-
-The model outputs a single token ("P" or "N") with log probabilities:
-
-```python
-config = types.GenerateContentConfig(
-    max_output_tokens=1,
-    temperature=0,
-    response_logprobs=True,
-    logprobs=5,
-    thinking_config=types.ThinkingConfig(thinking_budget=0),
-)
-```
-
-From the response:
-```
-log_p = logprob for "P" token
-log_n = logprob for "N" token
-prob_p = softmax(log_p, log_n)  →  continuous 0-1 probability of HDM
-```
-
-### Interactive Dashboard
-
-```bash
+# Launch the interactive dashboard
 python src/waveform_dashboard.py
 # Open http://localhost:8766
+
+# Evaluate signal quality
+python src/evaluate_signal.py --plot
 ```
-
-Features:
-- **Blue waveform** — audio amplitude envelope
-- **Green probability line** — continuous P(HDM) from Gemini sliding window
-- **Red shaded bands** — ground truth HDM events
-- **Orange dashed threshold** — decision boundary
-- **Audio playback** — click chart to seek, transport controls, keyboard shortcuts (Space, J/K/L, arrow keys)
-- **Per-HDM clip playback** — listen to individual events
-- **Alignment scores** — per-meeting composite score (0-100) combining detection and specificity
-- **Sort & filter** — sort by score/name/HDMs/duration, filter by recording site (Edinburgh/Idiap/TNO), session phase (a-d), or participant group
-- **AMI metadata** — each meeting shows site, group, session phase, and score grade
-
-### Signal Quality Evaluation
-
-```bash
-python src/evaluate_signal.py           # print summary table
-python src/evaluate_signal.py --plot    # generate plots (results/signal_evaluation.html)
-```
-
-Per-meeting metrics:
-- **Alignment Score** (0-100) — composite of detection + specificity (mean=74.3, 88% of meetings detected)
-- **Peak@HDM** — max model probability near true HDMs (mean=0.82)
-- **Noise Floor** — mean probability in non-HDM regions (mean=0.17)
-- **False Alarm Rate** — fraction of non-HDM windows above threshold (mean=10.2%)
-- **SNR** — signal-to-noise ratio (mean=7.5)
-
----
-
-## Dataset: AMI Meeting Corpus
-
-The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) contains 100 hours of meeting recordings with dialogue act annotations. The scenario meetings simulate teams of 4 people designing a TV remote control across multiple sessions.
-
-- **75 meetings** with audio, **1,639 total segments** (149 positive, 1,490 negative)
-- **5-fold Monte Carlo cross-validation** at the meeting level (80/20 split)
-- Audio: 16kHz mono WAV (headset mix channel)
-
-### Meeting Structure
-
-Each meeting ID encodes metadata: `ES2002b` = **E**dinburgh, **S**cenario, group **2002**, session **b**.
-
-**Recording Sites** (3 locations with different room acoustics):
-
-| Prefix | Site | Location | Meetings |
-|--------|------|----------|----------|
-| ES | Edinburgh | University of Edinburgh, UK | 26 |
-| IS | Idiap | Idiap Research Institute, Switzerland | 18 |
-| TS | TNO | TNO Human Factors, Netherlands | 31 |
-
-**Sessions** — Same 4 participants meet across 4 design phases:
-
-| Session | Phase | Description |
-|---------|-------|-------------|
-| a | Kick-off | Team introduction, getting acquainted with the task (~20 min avg) |
-| b | Functional design | User requirements, technical specs (~37 min avg) |
-| c | Conceptual design | Components, materials, UI concepts (~38 min avg) |
-| d | Detailed design | Final look-and-feel, evaluation (~35 min avg) |
-
-**Participant Roles** (same person plays the same role across all sessions):
-- **Project Manager (PM)** — runs meetings, keeps time/budget
-- **Marketing Expert (ME)** — user requirements, market trends
-- **User Interface Designer (UID)** — technical functions and UI
-- **Industrial Designer (ID)** — components and how it works
-
-**Group Numbers** — The numeric part (e.g. 2002) identifies a team. For example, ES2002a/b/c/d are the same 4 Edinburgh participants across all 4 phases. There are ~35 groups total, with most having 2-4 sessions containing HDMs.
-
-Most participants are **non-native English speakers**, which is relevant because accented speech may affect both HDM production and model detection accuracy.
 
 ---
 
@@ -210,54 +145,39 @@ Most participants are **non-native English speakers**, which is relevant because
 
 ```
 src/
-  gemini_sliding_window.py     # Gemini 2.5 Flash sliding window (Vertex AI logprobs)
-  gemini_audio_classifier.py   # Gemini baseline classifier
-  waveform_dashboard.py        # Interactive Figure 1 dashboard with audio (port 8766)
-  figure1_dashboard.py         # Static Plotly Figure 1 (HTML output)
-  dashboard.py                 # Trial results dashboard (HTML output)
-  validation_dashboard.py      # Prediction browser with audio
-  validation_audit.py          # Data leakage checks
-  evaluate_signal.py           # Signal quality evaluation (alignment scores, plots)
-  evaluate_all.py              # Run all methods and generate summary table
-  build_dataset.py             # Dataset construction
-  filter_hdm.py                # HDM annotation filtering
-  labeling_tool.py             # Human labeling web tool
-  audio_lm_prompting.py        # Audio LM prompting (Whisper + LLM)
-  wav2vec_classifier.py        # Wav2Vec 2.0 transfer learning classifier
+  gemini_sliding_window.py     # Main classifier — Gemini 2.5 Flash sliding window
+  waveform_dashboard.py        # Interactive dashboard with audio (port 8766)
+  evaluate_signal.py           # Signal quality scoring and plots
+  build_dataset.py             # Dataset construction from AMI annotations
+  filter_hdm.py                # HDM annotation filtering (3-tier keyword filter)
+  parse_ami_annotations.py     # AMI XML annotation parser
+  download_audio.py            # AMI audio downloader
   baseline_hotword.py          # ASR hotword baseline
   random_baseline.py           # Random baselines
-  download_audio.py            # AMI audio downloader
-  parse_ami_annotations.py     # AMI XML annotation parser
+  gemini_audio_classifier.py   # Gemini per-segment baseline classifier
+  figure1_dashboard.py         # Static Figure 1 (Plotly HTML)
+  validation_dashboard.py      # Prediction browser with audio
+  validation_audit.py          # Data leakage audit
+  labeling_tool.py             # Human labeling web tool
 
 results/
-  sliding_window/              # Zero-shot Gemini P(HDM) per meeting (75 meetings)
-  sliding_window_10shot/       # 10-shot Gemini P(HDM) per meeting (75 meetings)
-  sliding_window_gemini31pro_backup/  # Gemini 3.1 Pro results backup (75 meetings)
-  signal_evaluation.html       # Signal quality evaluation plots
-  gemini_10shot_results.json   # Gemini baseline results
+  sliding_window_10shot/       # 10-shot P(HDM) results (75 meetings)
+  sliding_window/              # Zero-shot P(HDM) results (75 meetings)
+  sliding_window_gemini31pro_backup/  # Gemini 3.1 Pro backup (75 meetings)
+  signal_evaluation.html       # Signal quality plots
   baseline_hotword.json        # Hotword baseline results
   random_baseline.json         # Random baseline results
 
 data/
-  audio/                       # AMI meeting WAV files (16kHz mono, not tracked)
-  dataset/                     # dataset_meta.json + segments (not tracked)
-  hdm_annotations.json         # Parsed HDM annotations (2,560 entries)
-  hdm_annotations.csv          # Same as above in CSV format
-  hdm_filtered.json            # Filtered HDM set (149 positive HDMs)
-  hdm_filtered.csv             # Same as above in CSV format
+  hdm_annotations.json         # All parsed HDM annotations (2,560 entries)
+  hdm_filtered.json            # Filtered HDM set (149 positives)
   hdm_labels.json              # Human verification labels
-  example_audio.json           # Example audio data
-  labeling_clips/              # Audio clips for human labeling
-
-docs/
-  index.html                   # GitHub Pages dashboard
-  figure1.html                 # Static Figure 1 visualization
-  figure1_data.json            # Precomputed data for Figure 1
-  sliding_window_run.md        # Sliding window run documentation
+  audio/                       # AMI WAV files (not tracked)
+  dataset/                     # Built dataset + segments (not tracked)
 ```
 
 ---
 
-## Paper Reference
+## Reference
 
 Collins, J., Banos, A., Culley, C., Ballesta Rosen, A., Machum, J., Lyon, R. F., & Carlile, S. (2025). *Identifying Hearing Difficulty Moments in Conversational Audio*. arXiv:2507.23590.
