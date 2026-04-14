@@ -20,32 +20,32 @@ This project replicates and extends their work on the AMI Meeting Corpus using *
 
 1. **Dataset Construction** — Parsed AMI Meeting Corpus XML annotations, identified 149 HDMs using a three-tier keyword filter on `COMMENT-ABOUT-UNDERSTANDING` tags, with 10x negative sampling (1,490 non-HDM segments) across 75 meetings.
 
-2. **Baseline Methods**
-   - **ASR Hotword Heuristic** (`baseline_hotword.py`) — keyword-matching baseline using common HDM phrases
-   - **Random Baselines** (`random_baseline.py`) — random 50/50 and base-rate classifiers for lower bounds
+2. **Baseline Methods** (completed with results)
+   - **ASR Hotword Heuristic** (`baseline_hotword.py`) — keyword-matching baseline using common HDM phrases (`results/baseline_hotword.json`)
+   - **Random Baselines** (`random_baseline.py`) — random 50/50 and base-rate classifiers (`results/random_baseline.json`)
 
-3. **Wav2Vec 2.0 Transfer Learning** (`wav2vec_classifier.py`) — Fine-tuned wav2vec2-base-960h with a 2-layer DNN classification head, following the paper's Method 2 hyperparameters.
-
-4. **Audio LM Prompting** (`audio_lm_prompting.py`) — Whisper transcription + LLM classification, replicating the paper's Method 3 approach.
-
-5. **Gemini Audio Classifier** (`gemini_audio_classifier.py`) — Direct Gemini classification baseline on individual segments.
-
-6. **Gemini 2.5 Flash Sliding Window** (`gemini_sliding_window.py`) — The main contribution. Runs Gemini 2.5 Flash on Vertex AI with logprobs across entire meetings in 12s windows (4s context + 4s target + 4s after) at 4s step intervals. Produces a continuous P(HDM) probability signal from softmax over "P"/"N" token logprobs. Supports both **zero-shot** and **10-shot** (5P + 5N examples) prompting.
-   - **Zero-shot results**: 75 meetings completed (`results/sliding_window/`)
-   - **10-shot results**: 75 meetings completed (`results/sliding_window_10shot/`)
+3. **Gemini 2.5 Flash 10-Shot Sliding Window** (`gemini_sliding_window.py`) — The main contribution. Runs Gemini 2.5 Flash on Vertex AI with logprobs across entire meetings in 12s windows (4s context + 4s target + 4s after) at 4s step intervals. Produces a continuous P(HDM) probability signal from softmax over "P"/"N" token logprobs, using 10-shot prompting (5P + 5N examples).
+   - **10-shot results**: All 75 meetings completed (`results/sliding_window_10shot/`)
+   - **Zero-shot results**: All 75 meetings completed (`results/sliding_window/`)
    - **Gemini 3.1 Pro backup**: 75 meetings (`results/sliding_window_gemini31pro_backup/`)
 
-7. **Interactive Waveform Dashboard** (`waveform_dashboard.py`) — The main visualization tool, recreating Collins et al. Figure 1 with full audio playback. Features blue waveform, green probability line, red HDM bands, orange threshold, click-to-seek, audio scrubber, speed control, few-shot example panels, and per-HDM clip playback.
+4. **Signal Quality Evaluation** (`evaluate_signal.py`) — Per-meeting alignment scoring (0-100) measuring detection accuracy and specificity. 88% of meetings have HDMs detected (Peak > 0.5), with mean alignment score of 74.3.
 
-8. **Static Figure 1 Dashboard** (`figure1_dashboard.py`) — Generates a static Plotly HTML (`results/figure1_dashboard.html`) with the same visual style but no audio playback.
+5. **Interactive Waveform Dashboard** (`waveform_dashboard.py`) — The main visualization tool, recreating Collins et al. Figure 1 with full audio playback. Features blue waveform, green probability line, red HDM bands, orange threshold, click-to-seek, transport controls, per-HDM clip playback, alignment scores, and AMI metadata filters (site/phase/group).
 
-9. **Results Dashboard** (`dashboard.py`) — Trial results visualization with Plotly charts, outputs to `results/dashboard.html` and `docs/index.html`.
+6. **Static Figure 1 Dashboard** (`figure1_dashboard.py`) — Generates a static Plotly HTML for the same visualization without audio.
 
-10. **Validation & Auditing**
-    - **Validation Dashboard** (`validation_dashboard.py`) — Prediction browser with audio for inspecting individual classifications
-    - **Validation Audit** (`validation_audit.py`) — Data leakage checks and cross-validation integrity verification
+7. **Validation & Auditing**
+    - **Validation Dashboard** (`validation_dashboard.py`) — Prediction browser with audio
+    - **Validation Audit** (`validation_audit.py`) — Data leakage checks
 
-11. **Human Labeling Tool** (`labeling_tool.py`) — Web-based tool for manual HDM labeling with audio playback.
+8. **Human Labeling Tool** (`labeling_tool.py`) — Web-based tool for manual HDM verification with audio playback.
+
+### Scaffolded (code written, not run to completion)
+
+- **Wav2Vec 2.0 Transfer Learning** (`wav2vec_classifier.py`) — Fine-tuned wav2vec2-base-960h classifier, following the paper's Method 2.
+- **Audio LM Prompting** (`audio_lm_prompting.py`) — Whisper transcription + LLM classification, replicating the paper's Method 3.
+- **Gemini Audio Classifier** (`gemini_audio_classifier.py`) — Direct Gemini classification on individual segments.
 
 ---
 
@@ -247,12 +247,19 @@ results/
 data/
   audio/                       # AMI meeting WAV files (16kHz mono, not tracked)
   dataset/                     # dataset_meta.json + segments (not tracked)
-  hdm_annotations.json         # Parsed HDM annotations
-  hdm_filtered.json            # Filtered HDM set
+  hdm_annotations.json         # Parsed HDM annotations (2,560 entries)
+  hdm_annotations.csv          # Same as above in CSV format
+  hdm_filtered.json            # Filtered HDM set (149 positive HDMs)
+  hdm_filtered.csv             # Same as above in CSV format
+  hdm_labels.json              # Human verification labels
+  example_audio.json           # Example audio data
   labeling_clips/              # Audio clips for human labeling
 
 docs/
   index.html                   # GitHub Pages dashboard
+  figure1.html                 # Static Figure 1 visualization
+  figure1_data.json            # Precomputed data for Figure 1
+  sliding_window_run.md        # Sliding window run documentation
 ```
 
 ---
