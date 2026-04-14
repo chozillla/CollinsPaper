@@ -8,9 +8,15 @@ A replication and extension of [Collins et al. (2025)](https://arxiv.org/abs/250
 
 **Hearing Difficulty Moments (HDMs)** are brief moments in conversation when a listener fails to understand what was said — signaled by responses like *"What?"*, *"Huh?"*, *"Sorry?"*, or *"Which was that?"*. Collins et al. (2025) demonstrated that large language models can detect these moments from audio alone, achieving F1 = 0.87 with Gemini 1.5 Pro using 10-shot prompting.
 
-This project replicates their approach on the full AMI Meeting Corpus and extends it with:
+We distinguish two types of HDM:
+
+- **Type A — Acoustic:** The listener physically misheard the audio (unclear speech, background noise, overlapping speakers)
+- **Type B — Comprehension:** The listener heard the words but lacked the language or comprehension to understand (unfamiliar jargon, accented speech, complex phrasing)
+
+This project replicates the Collins et al. approach on the full AMI Meeting Corpus and extends it with:
 
 - A **sliding window classifier** that produces a continuous P(HDM) probability signal across entire meetings (not just per-segment classification)
+- A **human labeling pipeline** where annotators listen to full meeting audio and place typed HDM markers (A or B), replacing the prior AI-only labels
 - An **interactive waveform dashboard** with audio playback, recreating the paper's Figure 1 visualization
 - **Signal quality metrics** for evaluating detection accuracy per meeting
 
@@ -88,11 +94,21 @@ A waveform dashboard (`waveform_dashboard.py`, port 8766) recreating Collins et 
 - Per-HDM clip playback for individual events
 - Sort and filter by alignment score, recording site, session phase, or participant group
 
-### 5. Validation
+### 5. Human Labeling Pipeline
+
+The initial 10-shot examples used AI-generated labels. To ground the dataset in human judgment, we built a dedicated labeling pipeline (`human_labeling_pipeline.py`, port 8770) where annotators:
+
+1. Listen to full meeting audio with waveform + AI probability signal visible for reference
+2. Click the waveform at any timestamp where they hear an HDM
+3. Classify each as **Type A** (acoustic — misheard) or **Type B** (comprehension — heard but didn't understand)
+4. Optionally add notes (e.g. "overlapping speakers", "strong accent")
+
+Multiple labelers are supported via `--labeler` flag, enabling inter-annotator agreement analysis. Labels are saved per-labeler per-meeting to `data/human_hdm_labels.json`.
+
+### 6. Validation
 
 - **Data leakage audit** — 8-point check confirming no train/test contamination across 5-fold Monte Carlo cross-validation (see `VALIDATION.md`)
 - **Prediction browser** — manual inspection of every classification with audio
-- **Human labeling tool** — web-based manual HDM verification
 
 ---
 
@@ -137,6 +153,10 @@ python src/waveform_dashboard.py
 
 # Evaluate signal quality
 python src/evaluate_signal.py --plot
+
+# Launch the human labeling pipeline
+python src/human_labeling_pipeline.py --labeler alice
+# Open http://localhost:8770
 ```
 
 ---
@@ -158,7 +178,8 @@ src/
   figure1_dashboard.py         # Static Figure 1 (Plotly HTML)
   validation_dashboard.py      # Prediction browser with audio
   validation_audit.py          # Data leakage audit
-  labeling_tool.py             # Human labeling web tool
+  labeling_tool.py             # AI-label verification tool (Yes/No per HDM)
+  human_labeling_pipeline.py   # Human labeling pipeline — Type A/B markers (port 8770)
 
 results/
   sliding_window_10shot/       # 10-shot P(HDM) results (75 meetings)
@@ -171,7 +192,8 @@ results/
 data/
   hdm_annotations.json         # All parsed HDM annotations (2,560 entries)
   hdm_filtered.json            # Filtered HDM set (149 positives)
-  hdm_labels.json              # Human verification labels
+  hdm_labels.json              # AI-label verification (yes/no)
+  human_hdm_labels.json        # Human pipeline labels (Type A/B, per labeler)
   audio/                       # AMI WAV files (not tracked)
   dataset/                     # Built dataset + segments (not tracked)
 ```
