@@ -27,37 +27,40 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 | Color | Stage |
 |-------|-------|
 | 🔵 Blue | Data ingestion — AMI corpus audio and annotations |
-| 🟡 Yellow | Filtering — keyword extraction and dataset construction |
-| 🟢 Green | AI classification — Gemini sliding window on Vertex AI |
-| 🩷 Pink | Human labeling — annotator review with AI signal as guide |
-| 🔴 Red / 🟣 Purple | HDM types — Type A (acoustic) / Type B (comprehension) |
-| ⚪ Gray | Output — final human-verified, typed labels |
+| 🩷 Pink | Human labeling — annotators listen and mark Type A/B HDMs |
+| 🟢 Green | AI classification — Gemini 10-shot using human labels as training data |
+| 🟡 Yellow | Cross-validation — verify 10-shot examples generalize to unseen meetings |
 
 ```mermaid
 flowchart TB
-    AMI(("AMI Corpus\n75 meetings")) --> PARSE["Parse XML annotations"]
-    PARSE --> FILTER["Keyword filter → 149 HDMs"]
-    FILTER --> DATASET["Dataset: 149 HDMs + 1,490 negatives"]
-    DATASET --> GEMINI["Gemini 2.5 Flash sliding window\n10-shot · Vertex AI logprobs"]
-    AMI --> GEMINI
-    GEMINI --> SIGNAL["P(HDM) signal: 0–1 every 4s"]
-    SIGNAL --> HUMAN["Human listens + AI signal as guide"]
-    AMI --> HUMAN
-    HUMAN --> TYPEA["Type A: Acoustic"]
-    HUMAN --> TYPEB["Type B: Comprehension"]
-    TYPEA --> LABELS["Final typed HDM labels"]
+    AMI(("AMI Corpus\n75 meetings · WAV audio")) --> PARSE["Parse XML annotations"]
+    PARSE --> CANDIDATES["HDM candidates (149)"]
+    AMI --> HUMAN["Humans listen to audio clips"]
+    CANDIDATES --> HUMAN
+    HUMAN --> TYPEA["Type A: Acoustic — misheard"]
+    HUMAN --> TYPEB["Type B: Comprehension — didn't understand"]
+    TYPEA --> LABELS["Human HDM labels\n(training data)"]
     TYPEB --> LABELS
+    LABELS --> SHOTS["Select 10-shot examples\n5 positive + 5 negative"]
+    AMI --> GEMINI["Gemini 2.5 Flash sliding window\nVertex AI logprobs"]
+    SHOTS --> GEMINI
+    GEMINI --> SIGNAL["P(HDM) signal: 0–1 every 4s"]
+    SIGNAL --> CV["K-fold cross-validation\nheld-out meetings"]
+    LABELS --> CV
+    CV --> RESULT["Generalization metrics\ndetection rate · peak prob · FAR"]
 
     style AMI fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
     style PARSE fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    style FILTER fill:#fef3c7,stroke:#f59e0b,color:#78350f
-    style DATASET fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style CANDIDATES fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    style HUMAN fill:#fce7f3,stroke:#ec4899,color:#831843
+    style TYPEA fill:#fce7f3,stroke:#ec4899,color:#831843
+    style TYPEB fill:#fce7f3,stroke:#ec4899,color:#831843
+    style LABELS fill:#fce7f3,stroke:#ec4899,color:#831843
+    style SHOTS fill:#d1fae5,stroke:#10b981,color:#064e3b
     style GEMINI fill:#d1fae5,stroke:#10b981,color:#064e3b
     style SIGNAL fill:#d1fae5,stroke:#10b981,color:#064e3b
-    style HUMAN fill:#fce7f3,stroke:#ec4899,color:#831843
-    style TYPEA fill:#fee2e2,stroke:#ef4444,color:#7f1d1d
-    style TYPEB fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
-    style LABELS fill:#f3f4f6,stroke:#6b7280,color:#111827
+    style CV fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    style RESULT fill:#fef3c7,stroke:#f59e0b,color:#78350f
 ```
 
 ---
@@ -136,18 +139,29 @@ A waveform dashboard (`waveform_dashboard.py`, port 8766) recreating Collins et 
 
 ### 5. Human Labeling Pipeline
 
-The initial 10-shot examples used AI-generated labels. To ground the dataset in human judgment, we built a dedicated labeling pipeline (`human_labeling_pipeline.py`, port 8770) where annotators:
+The 10-shot examples that drive the classifier must come from human judgment, not AI. We built a labeling pipeline (`human_labeling_pipeline.py`, port 8770) where annotators:
 
-1. Listen to full meeting audio with waveform + AI probability signal visible for reference
+1. Listen to full meeting audio with the waveform visible
 2. Click the waveform at any timestamp where they hear an HDM
 3. Classify each as **Type A** (acoustic — misheard) or **Type B** (comprehension — heard but didn't understand)
 4. Optionally add notes (e.g. "overlapping speakers", "strong accent")
 
-Multiple labelers are supported via `--labeler` flag, enabling inter-annotator agreement analysis. Labels are saved per-labeler per-meeting to `data/human_hdm_labels.json`.
+Multiple labelers are supported via `--labeler` flag for inter-annotator agreement. Labels are saved per-labeler per-meeting to `data/human_hdm_labels.json` and serve as training data for the classifier.
 
-### 6. Validation
+### 6. Cross-Validation
 
-- **Data leakage audit** — 8-point check confirming no train/test contamination across 5-fold Monte Carlo cross-validation (see `VALIDATION.md`)
+To verify that the human-labeled 10-shot examples generalize to unseen audio, we run K-fold cross-validation at the meeting level (`cross_validate_human_labels.py`):
+
+1. Split labeled meetings into K folds (no meeting appears in both train and test)
+2. For each fold, select 5P + 5N few-shot examples from training meetings' human labels
+3. Run Gemini sliding window on held-out test meetings using those examples
+4. Score: does P(HDM) peak near human-labeled timestamps in the test set?
+
+Reports per-fold and aggregate metrics: detection rate, mean peak probability, false alarm rate, and noise floor.
+
+### 7. Validation
+
+- **Data leakage audit** — 8-point check confirming no train/test contamination (see `VALIDATION.md`)
 - **Prediction browser** — manual inspection of every classification with audio
 
 ---
@@ -197,6 +211,10 @@ python src/evaluate_signal.py --plot
 # Launch the human labeling pipeline
 python src/human_labeling_pipeline.py --labeler alice
 # Open http://localhost:8770
+
+# Cross-validate that human labels generalize
+python src/cross_validate_human_labels.py --labeler alice --folds 5
+python src/cross_validate_human_labels.py --dry-run   # preview splits only
 ```
 
 ---
@@ -218,8 +236,9 @@ src/
   figure1_dashboard.py         # Static Figure 1 (Plotly HTML)
   validation_dashboard.py      # Prediction browser with audio
   validation_audit.py          # Data leakage audit
-  labeling_tool.py             # AI-label verification tool (Yes/No per HDM)
+  labeling_tool.py             # Legacy AI-label verification tool (Yes/No per HDM)
   human_labeling_pipeline.py   # Human labeling pipeline — Type A/B markers (port 8770)
+  cross_validate_human_labels.py  # K-fold CV: do human 10-shot examples generalize?
 
 results/
   sliding_window_10shot/       # 10-shot P(HDM) results (75 meetings)
@@ -232,10 +251,13 @@ results/
 data/
   hdm_annotations.json         # All parsed HDM annotations (2,560 entries)
   hdm_filtered.json            # Filtered HDM set (149 positives)
-  hdm_labels.json              # AI-label verification (yes/no)
-  human_hdm_labels.json        # Human pipeline labels (Type A/B, per labeler)
+  hdm_labels.json              # Legacy AI-label verification (yes/no)
+  human_hdm_labels.json        # Human labels (Type A/B, per labeler) — training data
   audio/                       # AMI WAV files (not tracked)
   dataset/                     # Built dataset + segments (not tracked)
+
+results/
+  cross_validation/            # K-fold CV results (per-fold + summary)
 ```
 
 ---
