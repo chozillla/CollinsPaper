@@ -22,6 +22,68 @@ This project replicates the Collins et al. approach on the full AMI Meeting Corp
 
 ---
 
+## Pipeline Overview
+
+```mermaid
+flowchart TD
+    subgraph DATA["Data Ingestion"]
+        AMI["AMI Meeting Corpus\n100h meeting audio\n75 meetings"]
+        XML["XML Dialogue Act\nAnnotations"]
+    end
+
+    subgraph EXTRACT["HDM Extraction"]
+        PARSE["Parse Annotations\nparse_ami_annotations.py"]
+        FILTER["3-Tier Keyword Filter\nfilter_hdm.py"]
+        DATASET["Built Dataset\n149 HDMs + 1,490 negatives"]
+    end
+
+    subgraph CLASSIFY["AI Classification"]
+        BASELINE["Baselines\nHotword heuristic\nRandom classifiers"]
+        SLIDING["Sliding Window Classifier\nGemini 2.5 Flash · Vertex AI\n12s windows · 4s steps\nLogprob → P(HDM) signal"]
+    end
+
+    subgraph HUMAN["Human Labeling Pipeline"]
+        LISTEN["Annotator listens\nto full meeting audio"]
+        TYPEA["Type A — Acoustic\nMisheard the audio"]
+        TYPEB["Type B — Comprehension\nHeard but didn't understand"]
+        HLABELS["Human HDM Labels\nper labeler · per meeting"]
+    end
+
+    subgraph EVAL["Evaluation & Visualization"]
+        SIGNAL["Signal Quality Scoring\nAlignment · Peak · Noise · FAR"]
+        DASH["Waveform Dashboard\nAudio + P(HDM) + ground truth"]
+        COMPARE["Human vs AI\nLabel Comparison"]
+    end
+
+    AMI --> PARSE
+    XML --> PARSE
+    PARSE --> FILTER
+    FILTER --> DATASET
+
+    DATASET --> BASELINE
+    DATASET --> SLIDING
+    AMI --> SLIDING
+
+    AMI --> LISTEN
+    SLIDING -.->|AI signal as reference| LISTEN
+    LISTEN --> TYPEA & TYPEB
+    TYPEA & TYPEB --> HLABELS
+
+    SLIDING --> SIGNAL
+    SLIDING --> DASH
+    DATASET --> DASH
+    HLABELS --> COMPARE
+    SLIDING --> COMPARE
+
+    style DATA fill:#f0f4ff,stroke:#7ba1d4
+    style EXTRACT fill:#fff8f0,stroke:#d4a87b
+    style CLASSIFY fill:#f0fff4,stroke:#7bd49a
+    style HUMAN fill:#fff0f0,stroke:#d47b7b
+    style EVAL fill:#f8f0ff,stroke:#a87bd4
+```
+
+---
+
 ## The Data
 
 The [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) is a well-known dataset of 100 hours of recorded meetings. In the scenario portion, teams of 4 people role-play designing a TV remote control across multiple sessions. Participants include a Project Manager, Marketing Expert, User Interface Designer, and Industrial Designer.
